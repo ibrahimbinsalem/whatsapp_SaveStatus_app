@@ -1,0 +1,109 @@
+{
+  "app_name": "تطبيق فلاتر فورج",
+  "splash_title": "أهلاً من فلاتر فورج",
+  "splash_tagline": "انطلق أسرع مع هندسة نظيفة",
+  "crafted_by": "من تطوير عبدالله عصام",
+  "country_egypt": "مصر 🇪🇬",
+  "welcome": "أهلاً وسهلاً",
+  "hello_from_extension": "مرحبا من فلاتر فورج",
+  "hello_from_creator": "أنا عبدالله عصام، صانع فلاتر فورج",
+  "hero_subtitle": "منطلق ديناميكي لمشاريع فلاتر",
+  "get_started": "ابدأ الآن",
+  "next": "التالي",
+  "skip": "تخطي",
+  "done": "تم",
+  "home": "الرئيسية",
+  "settings": "الإعدادات",
+  "profile": "الملف الشخصي",
+  "logout": "تسجيل الخروج",
+  "retry": "إعادة المحاولة",
+  "home_title": "أنت جاهز للبدء",
+  "home_subtitle": "الهندسة النظيفة والتعدد اللغوي والثيمات مفعلة مسبقاً.",
+  "home_cta_title": "قاعدة جاهزة للإنتاج",
+  "home_cta_subtitle": "طبقات واضحة، حقن تبعيات، مسارات، تعريب، واختبارات مهيأة.",
+  "start_building": "ابدأ البناء",
+  "made_with_love": "صنع بحب في مصر",
+  "created_by": "تم الإنشاء بواسطة عبدالله عصام",
+  "onboarding_title_1": "انطلق بسرعة",
+  "onboarding_desc_1": "هندسة نظيفة مع أفضل الممارسات والاختبارات والطبقات.",
+  "onboarding_title_2": "تعدد لغات جاهز",
+  "onboarding_desc_2": "الإنجليزية والعربية مفعّلتان باستخدام Easy Localization.",
+  "onboarding_title_3": "حزمة تصميم ترحيبية",
+  "onboarding_desc_3": "شاشات سلاش وأونبوردنج ورئيسية جميلة باستخدام شعار تطبيقك.",
+  "onboarding_feature_1": "الأصول مضافة: الشعار + اللغات",
+  "onboarding_feature_2": "EasyLocalization مدمجة في main",
+  "onboarding_feature_3": "تدفق ترحيبي جاهز: سلاش → أونبوردنج → الرئيسية",
+  "status_home_title": "حافظ الحالات",
+  "status_home_tagline": "احفظ حالات واتساب فوراً",
+  "status_home_subtitle": "أندرويد فقط — افتح واتساب ثم حدّث هنا",
+  "status_overview_photos": "حالات الصور",
+  "status_overview_videos": "حالات الفيديو",
+  "status_overview_hint": "حدّث لعرض الحالات",
+  "status_action_import": "فحص الحالات",
+  "status_action_open_whatsapp": "فتح واتساب",
+  "status_action_save": "حفظ في المعرض",
+  "status_already_saved": "تم حفظها مسبقًا",
+  "status_action_share": "مشاركة",
+  "status_action_copy": "نسخ المسار",
+  "status_action_delete": "حذف النسخة",
+  "status_action_favorite": "مفضلة",
+  "status_search_hint": "ابحث في الحالات",
+  "status_filter_favorites": "المفضلة",
+  "status_filter_all": "الكل",
+  "status_filter_photos": "صور",
+  "status_filter_videos": "فيديو",
+  "status_sort_latest": "الأحدث أولاً",
+  "status_sort_oldest": "الأقدم أولاً",
+  "status_tabs_title": "معاينات الحالات",
+  "status_tabs_photos": "صور",
+  "status_tabs_videos": "فيديو",
+  "status_tabs_empty": "لا توجد حالات الآن",
+  "status_tabs_hint": "اضغط على حالة لحفظها في المعرض",
+  "status_filter_empty_title": "لا توجد نتائج",
+  "status_filter_empty_subtitle": "جرّب مسح البحث أو الفلاتر",
+  "status_how_title": "طريقة العمل على أندرويد",
+  "status_how_step_1": "افتح واتساب وشاهد الحالات",
+  "status_how_step_2": "ارجع هنا واضغط فحص الحالات",
+  "status_how_step_3": "اضغط أي حالة لحفظها في المعرض",
+  "status_favorites_title": "المفضلة",
+  "status_favorites_empty": "لا توجد مفضلات بعد",
+  "status_recent_title": "أحدث المحفوظات",
+  "status_recent_subtitle": "أحدث الحالات المعروضة على الجهاز",
+  "status_recent_item_photo": "حالة صورة",
+  "status_recent_item_video": "حالة فيديو",
+  "status_recent_time_now": "الآن",
+  "status_recent_time_min": "منذ 5 دقائق",
+  "status_imported": "تم استيراد الحالات",
+  "status_recent_empty": "لا توجد حالات محفوظة بعد",
+  "status_scan_done": "تم تحديث الحالات",
+  "status_saved": "تم الحفظ في الاستديو",
+  "status_save_failed": "فشل الحفظ",
+  "status_deleted": "تم الحذف من المعرض",
+  "status_delete_failed": "فشل الحذف",
+  "status_copy_done": "تم نسخ المسار",
+  "status_share_failed": "فشلت المشاركة",
+  "status_empty_title": "لا توجد حالات بعد",
+  "status_empty_subtitle": "افتح واتساب وشاهد الحالات ثم قم بالفحص هنا.",
+  "status_settings_title": "الإعدادات",
+  "status_settings_permissions": "الأذونات",
+  "status_settings_permissions_subtitle": "اسمح للتطبيق بقراءة ملفات الحالات.",
+  "status_settings_permission_storage": "إذن الملفات والوسائط",
+  "status_settings_permission_manage": "إذن الوصول لكل الملفات",
+  "status_settings_permission_granted": "مفعّل",
+  "status_settings_permission_denied": "غير مفعّل",
+  "status_settings_open_settings": "فتح الإعدادات",
+  "status_settings_storage": "التخزين",
+  "status_settings_storage_subtitle": "إدارة النسخ المحفوظة في المعرض.",
+  "status_settings_saved_count": "عدد النسخ المحفوظة: {count}",
+  "status_settings_clear_button": "حذف النسخ المحفوظة",
+  "status_settings_clear_title": "حذف النسخ المحفوظة؟",
+  "status_settings_clear_message": "سيتم حذف جميع النسخ المحفوظة من المعرض.",
+  "status_settings_clear_done": "تم حذف النسخ المحفوظة",
+  "status_settings_clear_empty": "لا توجد نسخ للحذف",
+  "status_settings_guide": "دليل سريع",
+  "status_permission_title": "نحتاج إذن التخزين",
+  "status_permission_subtitle": "فعّل إذن الملفات والوسائط لقراءة الحالات.",
+  "status_permission_action": "فتح الإعدادات",
+  "status_android_only_title": "أندرويد فقط",
+  "status_android_only_subtitle": "تنزيل الحالات غير متاح على iOS."
+}

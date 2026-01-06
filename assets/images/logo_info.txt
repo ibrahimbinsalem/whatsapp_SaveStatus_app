@@ -1,0 +1,5 @@
+// Flutter Forge Logo
+// This is a placeholder. The actual logo will be displayed in the app.
+// Created by Abdullah Essam
+// GitHub: https://github.com/AbdalluhEssam
+// LinkedIn: https://www.linkedin.com/in/abdalluh-essam
