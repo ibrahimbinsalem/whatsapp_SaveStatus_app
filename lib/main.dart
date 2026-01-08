@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:just_audio_background/just_audio_background.dart';
+import 'package:get/get.dart' hide Trans;
 import 'core/routes/app_router.dart';
 import 'core/routes/routes.dart';
 import 'core/theme/app_theme.dart';
@@ -58,7 +59,8 @@ class MyApp extends StatelessWidget {
       minTextAdapt: true,
       splitScreenMode: true,
       builder: (context, child) {
-        return MaterialApp(
+        return GetMaterialApp(
+          key: ValueKey(context.locale),
           title: 'Flutter Forge App',
           debugShowCheckedModeBanner: false,
           theme: AppTheme.lightTheme,

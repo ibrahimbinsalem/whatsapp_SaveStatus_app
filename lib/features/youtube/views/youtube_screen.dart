@@ -1,21 +1,13 @@
 import 'package:easy_localization/easy_localization.dart';
-import 'dart:async';
-import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:get/get.dart' hide Trans;
 import 'package:youtube_explode_dart/youtube_explode_dart.dart';
-import 'package:path_provider/path_provider.dart';
-import 'package:permission_handler/permission_handler.dart';
-import 'dart:io';
-import 'package:fluttertoast/fluttertoast.dart';
-import 'package:whatsapp_dawnloader/features/youtube/downloader.dart';
-import 'package:whatsapp_dawnloader/features/youtube/views/downloads_screen.dart';
-import 'package:whatsapp_dawnloader/features/youtube/views/local_video_player_screen.dart';
-import 'package:ffmpeg_kit_flutter_new_audio/ffmpeg_kit.dart';
-import 'package:ffmpeg_kit_flutter_new_audio/return_code.dart';
 
-class YoutubeScreen extends StatefulWidget {
+import '../controllers/youtube_controller.dart';
+import '../models/video_format.dart';
+
+class YoutubeScreen extends StatelessWidget {
   const YoutubeScreen({super.key});
 
   static const Color _ytRed = Color(0xFFE53935);
@@ -23,824 +15,118 @@ class YoutubeScreen extends StatefulWidget {
   static const Color _ytSurface = Color(0xFF1C1C1C);
 
   @override
-  State<YoutubeScreen> createState() => _YoutubeScreenState();
-}
-
-class _YoutubeScreenState extends State<YoutubeScreen> {
-  final TextEditingController _urlController = TextEditingController();
-  final YoutubeExplode _yt = YoutubeExplode();
-  static const MethodChannel _mediaScanner = MethodChannel(
-    'whatsapp_dawnloader/media_scan',
-  );
-
-  Video? _currentVideo;
-  StreamManifest? _currentManifest;
-  List<VideoFormat> _availableFormats = [];
-  bool _isLoading = false;
-  bool _isDownloading = false;
-  double _downloadProgress = 0.0;
-  String _downloadStatus = '';
-  String? _selectedFormatId;
-  bool _isCancelDownload = false;
-  List<Map<String, dynamic>> _downloadHistory = [];
-  String _formatType = 'video';
-
-  @override
-  void initState() {
-    super.initState();
-    _loadDownloadHistory();
-  }
-
-  @override
-  void dispose() {
-    _urlController.dispose();
-    _yt.close();
-    super.dispose();
-  }
-
-  Future<File> get _localHistoryFile async {
-    final directory = await getApplicationDocumentsDirectory();
-    return File('${directory.path}/downloads_history.json');
-  }
-
-  Future<void> _loadDownloadHistory() async {
-    try {
-      final file = await _localHistoryFile;
-      if (await file.exists()) {
-        final contents = await file.readAsString();
-        final List<dynamic> jsonList = jsonDecode(contents);
-        setState(() {
-          _downloadHistory = List<Map<String, dynamic>>.from(jsonList);
-        });
-      }
-    } catch (e) {
-      debugPrint('Error loading history: $e');
-    }
-  }
-
-  Future<void> _scanFile(String path) async {
-    try {
-      await _mediaScanner.invokeMethod('scanFile', {'path': path});
-    } catch (_) {}
-  }
-
-  Future<void> _saveDownloadHistory() async {
-    final file = await _localHistoryFile;
-    await file.writeAsString(jsonEncode(_downloadHistory));
-  }
-
-  Future<void> _pasteFromClipboard() async {
-    final clipboardData = await Clipboard.getData('text/plain');
-    if (clipboardData != null && clipboardData.text != null) {
-      setState(() {
-        _urlController.text = clipboardData.text!;
-      });
-    }
-  }
-
-  Future<void> _getVideoInfo() async {
-    final url = _urlController.text.trim();
-    if (url.isEmpty) {
-      _showToast('Please enter a YouTube URL');
-      return;
-    }
-
-    setState(() {
-      _isLoading = true;
-      _currentVideo = null;
-      _currentManifest = null;
-      _availableFormats = [];
-      _selectedFormatId = null;
-      _formatType = 'video';
-    });
-
-    try {
-      // استخراج ID الفيديو
-      final videoId = VideoId(url);
-
-      // جلب معلومات الفيديو
-      final video = await _yt.videos.get(videoId);
-
-      // جلب التدفقات المتاحة
-      final streamManifest = await _yt.videos.streamsClient.getManifest(
-        videoId,
-      );
-      _currentManifest = streamManifest;
-
-      // تجميع الصيغ المتاحة
-      final formats = <VideoFormat>[];
-      final addedQualities = <String>{};
-
-      // 1. إضافة التدفقات المدمجة (صوت + صورة) - عادة تصل لـ 720p
-      final muxedStreams = streamManifest.muxed.toList()
-        ..sort((a, b) => b.size.totalBytes.compareTo(a.size.totalBytes));
-
-      for (var stream in muxedStreams) {
-        final containerName = _getContainerName(stream.container);
-        final qualityLabel = stream.qualityLabel;
-
-        formats.add(
-          VideoFormat(
-            id: stream.tag.toString(),
-            label: '$containerName $qualityLabel',
-            icon: Icons.videocam_rounded,
-            quality: qualityLabel,
-            size: stream.size.totalBytes,
-            isAudioOnly: false,
-            container: containerName,
-          ),
-        );
-        addedQualities.add(qualityLabel);
-      }
-
-      // 2. إضافة تدفقات الفيديو فقط (للجودات العالية 1080p+)
-      final videoOnlyStreams = streamManifest.videoOnly.toList()
-        ..sort((a, b) => b.size.totalBytes.compareTo(a.size.totalBytes));
-
-      for (var stream in videoOnlyStreams) {
-        final qualityLabel = stream.qualityLabel;
-        if (!addedQualities.contains(qualityLabel)) {
-          final containerName = _getContainerName(stream.container);
-          formats.add(
-            VideoFormat(
-              id: stream.tag.toString(),
-              label: '$containerName $qualityLabel',
-              icon: Icons.high_quality_rounded,
-              quality: qualityLabel,
-              size: stream.size.totalBytes,
-              isAudioOnly: false,
-              container: containerName,
-            ),
-          );
-          addedQualities.add(qualityLabel);
-        }
-      }
-
-      // إضافة صوت بجودات مختلفة
-      final audioStreams = streamManifest.audioOnly;
-      for (var stream in audioStreams) {
-        final bitrate = stream.bitrate.kiloBitsPerSecond.ceil();
-        final containerName = _getContainerName(stream.container);
-
-        String displayLabel = containerName;
-        String fileExtension = containerName;
-        IconData icon = Icons.audiotrack_rounded;
-
-        if (containerName == 'MP4' || containerName == 'M4A') {
-          displayLabel = 'MP3';
-          fileExtension = 'mp3';
-          icon = Icons.music_note_rounded;
-        }
-
-        formats.add(
-          VideoFormat(
-            id: stream.tag.toString(),
-            label: '$displayLabel ${bitrate}kbps',
-            icon: icon,
-            quality: '${bitrate}kbps',
-            size: stream.size.totalBytes,
-            isAudioOnly: true,
-            container: fileExtension,
-          ),
-        );
-      }
-
-      // فرز الصيغ حسب الجودة والحجم
-      formats.sort((a, b) => b.size.compareTo(a.size));
-
-      if (!mounted) return;
-
-      setState(() {
-        _currentVideo = video;
-        _availableFormats = formats;
-        _isLoading = false;
-      });
-
-      _showToast('Video info loaded successfully');
-    } catch (e) {
-      debugPrint('YouTube Info Error: $e');
-      if (!mounted) return;
-      setState(() {
-        _isLoading = false;
-      });
-      _showToast('Error: ${e.toString()}');
-    }
-  }
-
-  String _getContainerName(dynamic container) {
-    if (container.toString().contains('mp4')) return 'MP4';
-    if (container.toString().contains('webm')) return 'WEBM';
-    if (container.toString().contains('mp3')) return 'MP3';
-    if (container.toString().contains('m4a')) return 'M4A';
-    return 'VIDEO';
-  }
-
-  Future<bool> _requestPermission() async {
-    // التحقق من إذن إدارة الملفات (للأندرويد 11+)
-    if (await Permission.manageExternalStorage.isGranted) return true;
-
-    // التحقق من إذن التخزين (للأندرويد 10 وأقل)
-    if (await Permission.storage.isGranted) return true;
-
-    // محاولة طلب إذن إدارة الملفات بشكل صريح
-    if (await Permission.manageExternalStorage.request().isGranted) {
-      return true;
-    }
-
-    // طلب الأذونات المناسبة لجميع الإصدارات
-    // (Storage للإصدارات القديمة، Videos/Audio للإصدارات الحديثة 13+)
-    Map<Permission, PermissionStatus> statuses = await [
-      Permission.storage,
-      Permission.videos,
-      Permission.audio,
-    ].request();
-
-    // On Android 13+, we need audio/video permissions. On older versions, storage is enough.
-    // This check covers both scenarios.
-    if ((statuses[Permission.videos]?.isGranted ?? false) &&
-            (statuses[Permission.audio]?.isGranted ?? false) ||
-        (statuses[Permission.storage]?.isGranted ?? false)) {
-      return true;
-    }
-
-    // معالجة الرفض الدائم
-    if (statuses[Permission.storage] == PermissionStatus.permanentlyDenied ||
-        statuses[Permission.videos] == PermissionStatus.permanentlyDenied ||
-        statuses[Permission.audio] == PermissionStatus.permanentlyDenied) {
-      if (mounted) {
-        showDialog(
-          context: context,
-          builder: (context) => AlertDialog(
-            backgroundColor: YoutubeScreen._ytSurface,
-            title: Text(
-              'Permission Required',
-              style: TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.bold,
+  Widget build(BuildContext context) {
+    return GetBuilder<YoutubeController>(
+      init: YoutubeController(),
+      builder: (controller) {
+        return Scaffold(
+          backgroundColor: YoutubeScreen._ytDark,
+          body: Stack(
+            fit: StackFit.expand,
+            children: [
+              Container(
+                decoration: const BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [Color(0xFF0F0F0F), Color(0xFF1A1A1A)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                ),
               ),
-            ),
-            content: Text(
-              'Please enable Files and Media permissions in settings to save downloads.',
-              style: TextStyle(color: Colors.white70),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: Text('Cancel', style: TextStyle(color: Colors.white54)),
+              Positioned(
+                top: -120,
+                right: -80,
+                child: _GlowBubble(
+                  size: 220,
+                  color: YoutubeScreen._ytRed.withOpacity(0.18),
+                ),
               ),
-              TextButton(
-                onPressed: () {
-                  Navigator.pop(context);
-                  openAppSettings();
-                },
-                child: Text(
-                  'Settings',
-                  style: TextStyle(color: YoutubeScreen._ytRed),
+              Positioned(
+                bottom: -140,
+                left: -90,
+                child: _GlowBubble(
+                  size: 260,
+                  color: const Color(0xFFFF6D6D).withOpacity(0.16),
+                ),
+              ),
+              SafeArea(
+                child: SingleChildScrollView(
+                  padding:
+                      EdgeInsets.symmetric(horizontal: 20.w, vertical: 20.h),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _TopBar(
+                        onDownloadsPressed: () =>
+                            controller.navigateToDownloads(context),
+                      ),
+                      SizedBox(height: 18.h),
+                      _HeroCard(),
+                      SizedBox(height: 16.h),
+                      _InputCard(
+                        urlController: controller.urlController,
+                        onPastePressed: controller.pasteFromClipboard,
+                        onPreparePressed: controller.getVideoInfo,
+                        isLoading: controller.isLoading,
+                      ),
+                      if (controller.currentVideo != null) ...[
+                        SizedBox(height: 16.h),
+                        _VideoInfoCard(
+                          video: controller.currentVideo!,
+                          duration: controller
+                              .formatDuration(controller.currentVideo!.duration),
+                        ),
+                      ],
+                      if (controller.availableFormats
+                          .any((f) => !f.isAudioOnly)) ...[
+                        SizedBox(height: 20.h),
+                        _FormatsRow(
+                          formats: controller.availableFormats
+                              .where((f) => !f.isAudioOnly)
+                              .toList(),
+                          selectedFormatId: controller.selectedFormatId,
+                          onFormatSelected: controller.selectFormat,
+                          onDownloadPressed: controller.selectedFormatId != null
+                              ? () => controller.downloadVideo(
+                                    context,
+                                    controller.selectedFormatId!,
+                                  )
+                              : null,
+                          onCancel: controller.isDownloading
+                              ? controller.cancelDownload
+                              : null,
+                          isDownloading: controller.isDownloading,
+                          downloadProgress: controller.downloadProgress,
+                          downloadStatus: controller.downloadStatus,
+                          formatFileSize: controller.formatFileSize,
+                        ),
+                      ],
+
+                      /*
+                      SizedBox(height: 20.h),
+                      _SectionHeader(title: 'yt_section_recent'.tr()),
+                      SizedBox(height: 10.h),
+
+                      // عرض التحميلات الحديثة
+                      if (controller.downloadHistory.isNotEmpty)
+                        _RecentDownloadsList(
+                          recentDownloads:
+                              controller.downloadHistory.take(3).toList(),
+                        )
+                      else
+                        _EmptyState(
+                          title: 'yt_empty_recent'.tr(),
+                          subtitle: 'yt_subtitle'.tr(),
+                        ),
+                      */
+                    ],
+                  ),
                 ),
               ),
             ],
           ),
         );
-      }
-      return false;
-    }
-    return false;
-  }
-
-  Future<void> _downloadStreamRaw(
-    VideoId videoId,
-    int streamTag,
-    File file,
-    int totalBytes,
-    Function(int bytes) onBytesReceived,
-  ) async {
-    if (await file.exists()) {
-      await file.delete();
-    }
-
-    final sink = file.openWrite();
-    int downloadedBytes = 0;
-    int retryCount = 0;
-    const int maxRetries = 20;    StreamInfo? currentStreamInfo;
-
-    try {
-      while (downloadedBytes < totalBytes) {
-        if (_isCancelDownload) break;
-
-        HttpClient? client;
-        try {
-          // تحديث الرابط (Manifest) عند البداية أو عند حدوث خطأ
-          if (currentStreamInfo == null || retryCount > 0) {
-            final manifest = await _yt.videos.streamsClient.getManifest(
-              videoId,
-            );
-            currentStreamInfo = manifest.streams.firstWhere(
-              (s) => s.tag == streamTag,
-            );
-          }
-
-          Stream<List<int>> stream;
-
-          if (downloadedBytes == 0) {
-            // المحاولة الأولى: نستخدم عميل المكتبة الرسمي مباشرة لتجنب 403
-            // هذا يضمن أن يبدأ التحميل بشكل صحيح
-            stream = _yt.videos.streamsClient.get(currentStreamInfo!);
-          } else {
-            // محاولة الاستكمال: نستخدم HttpClient مع رابط جديد
-            client = HttpClient();
-            client.userAgent =
-                'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
-
-            final request = await client.getUrl(currentStreamInfo!.url);
-            request.headers.add(
-              HttpHeaders.rangeHeader,
-              'bytes=$downloadedBytes-',
-            );
-
-            final response = await request.close();
-
-            if (response.statusCode >= 400) {
-              throw Exception(
-                'HTTP Error: ${response.statusCode} ${response.reasonPhrase}',
-              );
-            }
-            stream = response;
-          }
-
-          // إضافة مهلة زمنية
-          final timedStream = stream.timeout(
-            const Duration(seconds: 60),
-            onTimeout: (eventSink) {
-              eventSink.addError(TimeoutException('Stream timed out'));
-              eventSink.close();
-            },
-          );
-
-          int bufferedUIBytes = 0;
-          int lastUITime = DateTime.now().millisecondsSinceEpoch;
-
-          await for (final data in timedStream) {
-            if (_isCancelDownload) break;
-
-            sink.add(data);
-            downloadedBytes += data.length;
-
-            bufferedUIBytes += data.length;
-            final now = DateTime.now().millisecondsSinceEpoch;
-
-            if (bufferedUIBytes > 100 * 1024 || now - lastUITime > 200) {
-              onBytesReceived(bufferedUIBytes);
-              bufferedUIBytes = 0;
-              lastUITime = now;
-            }
-
-            retryCount = 0;
-          }
-
-          if (bufferedUIBytes > 0) {
-            onBytesReceived(bufferedUIBytes);
-          }
-
-          if (downloadedBytes >= totalBytes) {
-            break;
-          }
-
-          throw Exception('Connection closed prematurely');
-        } catch (e) {
-          if (_isCancelDownload) break;
-
-          // إجبار تجديد الرابط عند حدوث أي خطأ
-          currentStreamInfo = null;
-
-          retryCount++;
-          debugPrint(
-            'Download error at $downloadedBytes bytes: $e. Retry $retryCount/$maxRetries',
-          );
-
-          if (retryCount > maxRetries) {
-            throw Exception(
-              'Failed to download after $maxRetries retries. Error: $e',
-            );
-          }
-
-          await Future.delayed(Duration(seconds: retryCount));
-        } finally {
-          client?.close();
-        }
-      }
-
-      await sink.flush();
-    } finally {
-      await sink.close();
-    }
-  }
-
-  Future<void> _downloadVideo(String formatId) async {
-    if (_currentVideo == null) return;
-
-    // التحقق من إذن التخزين مع معالجة الرفض الدائم
-    final hasPermission = await _requestPermission();
-    if (!hasPermission) {
-      _showToast('Permission denied. Cannot save file.');
-      return;
-    }
-
-    setState(() {
-      _isDownloading = true;
-      _downloadProgress = 0.0;
-      _downloadStatus = 'Preparing download...';
-      _isCancelDownload = false;
-    });
-
-    try {
-      // Get new stream links with timeout to avoid hanging
-      final videoId = _currentVideo!.id;
-      final streamManifest = await _yt.videos.streamsClient
-          .getManifest(videoId.value)
-          .timeout(const Duration(seconds: 30));
-
-      // البحث عن التدفق المحدد
-      // قد يرمي خطأ إذا لم يتم العثور عليه، مما ينقلنا لكتلة catch للمحاولة الثانية
-      final streamInfo = streamManifest.streams.firstWhere(
-        (s) => s.tag.toString() == formatId,
-      );
-
-      // الحصول على الصيغة المختارة
-      final selectedFormat = _availableFormats.firstWhere(
-        (f) => f.id == formatId,
-      );
-
-      // إنشاء اسم الملف آمن
-      final safeTitle = _currentVideo!.title
-          .replaceAll(RegExp(r'[<>:"/\\|?*]'), '')
-          .replaceAll(RegExp(r'\s+'), ' ')
-          .trim();
-
-      final fileName =
-          '${safeTitle.substring(0, safeTitle.length < 50 ? safeTitle.length : 50)}_${selectedFormat.quality}.${selectedFormat.container.toLowerCase()}'
-              .replaceAll(' ', '_');
-
-      final isAudio = selectedFormat.isAudioOnly;
-      final downloadsDir = Directory(
-        isAudio
-            ? '/storage/emulated/0/Music/WhatsappDownloader'
-            : '/storage/emulated/0/Movies/WhatsappDownloader',
-      );
-      if (!await downloadsDir.exists()) {
-        await downloadsDir.create(recursive: true);
-      }
-
-      final filePath = '${downloadsDir.path}/$fileName';
-
-      if (streamInfo is VideoOnlyStreamInfo) {
-        // حالة الجودة العالية (فيديو منفصل عن الصوت)
-        final audioStream = streamManifest.audioOnly.withHighestBitrate();
-        final tempVideo = File(
-          '${downloadsDir.path}/temp_video_${DateTime.now().millisecondsSinceEpoch}.mp4',
-        );
-        final tempAudio = File(
-          '${downloadsDir.path}/temp_audio_${DateTime.now().millisecondsSinceEpoch}.m4a',
-        );
-
-        // حساب الحجم الكلي للتقدم
-        final totalBytes =
-            streamInfo.size.totalBytes + audioStream.size.totalBytes;
-        var receivedVideo = 0;
-        var receivedAudio = 0;
-
-        // دالة لتحديث التقدم الموحد
-        void updateProgress() {
-          if (!mounted) return;
-
-          final totalReceived = receivedVideo + receivedAudio;
-          // نخصص 95% للتحميل و 5% للدمج
-          final progress = (totalReceived / totalBytes) * 0.95;
-          setState(() {
-            _downloadProgress = progress;
-            _downloadStatus =
-                'جاري التحميل بسرعة عالية: ${(progress * 100).toStringAsFixed(1)}%';
-          });
-        }
-
-        // تحميل الفيديو والصوت في نفس الوقت (Parallel Download)
-        await Future.wait([
-          _downloadStreamRaw(
-            videoId,
-            streamInfo.tag,
-            tempVideo,
-            streamInfo.size.totalBytes,
-            (bytes) {
-              receivedVideo += bytes;
-              updateProgress();
-            },
-          ),
-          _downloadStreamRaw(
-            videoId,
-            audioStream.tag,
-            tempAudio,
-            audioStream.size.totalBytes,
-            (bytes) {
-              receivedAudio += bytes;
-              updateProgress();
-            },
-          ),
-        ]);
-
-        if (_isCancelDownload) return;
-
-        // 3. الدمج باستخدام FFmpeg (90% -> 100%)
-        setState(() {
-          _downloadStatus = 'Merging audio and video...';
-        });
-
-        // تحديد كوديك الصوت بناءً على الحاوية لضمان التوافق
-        final audioCodec = selectedFormat.container == 'WEBM'
-            ? 'libopus'
-            : 'aac';
-
-        final session = await FFmpegKit.execute(
-          '-y -i "${tempVideo.path}" -i "${tempAudio.path}" -c:v copy -c:a $audioCodec "$filePath"',
-        );
-        final returnCode = await session.getReturnCode();
-
-        // حذف الملفات المؤقتة
-        if (await tempVideo.exists()) await tempVideo.delete();
-        if (await tempAudio.exists()) await tempAudio.delete();
-
-        if (!ReturnCode.isSuccess(returnCode)) {
-          throw Exception('Failed to merge video and audio');
-        }
-      } else {
-        // تحميل مباشر (للملفات المدمجة أو الصوت فقط)
-        final file = File(filePath);
-        final totalBytes = streamInfo.size.totalBytes;
-        var received = 0;
-
-        await _downloadStreamRaw(videoId, streamInfo.tag, file, totalBytes, (
-          bytes,
-        ) {
-          received += bytes;
-          if (mounted) {
-            final progress = received / totalBytes;
-            setState(() {
-              _downloadProgress = progress;
-              _downloadStatus =
-                  'جاري التحميل: ${(progress * 100).toStringAsFixed(1)}%';
-            });
-          }
-        });
-      }
-
-      // Cancel the download if the user presses the stop button before the download starts.
-      if (_isCancelDownload) {
-        final file = File(filePath);
-        if (await file.exists()) {
-          await file.delete();
-        }
-        if (mounted) {
-          setState(() {
-            _downloadStatus = 'Download cancelled';
-            _isDownloading = false;
-          });
-        }
-        return;
-      }
-
-      if (!mounted) return;
-
-      await _scanFile(filePath);
-
-      setState(() {
-        _downloadStatus = 'تم التنزيل بنجاح!';
-        _isDownloading = false;
-
-        // إضافة إلى سجل التنزيلات
-        final downloadItem = {
-          'title': fileName,
-          'path': filePath,
-          'type': isAudio ? 'audio' : 'video',
-          'date': DateTime.now().toIso8601String(),
-          'size': _formatFileSize(selectedFormat.size),
-          'sizeBytes': selectedFormat.size,
-          'durationMs': _currentVideo?.duration?.inMilliseconds,
-          'thumbUrl': _currentVideo?.thumbnails.highResUrl,
-        };
-        _downloadHistory.insert(0, downloadItem);
-        _saveDownloadHistory();
-      });
-
-      _showDownloadSnackBar(
-        filePath: filePath,
-        title: fileName,
-        isAudio: isAudio,
-        coverUrl: _currentVideo?.thumbnails.highResUrl,
-      );
-    } catch (e) {
-      debugPrint('🔴 Download Error: $e');
-      if (!mounted) return;
-      setState(() {
-        _isDownloading = false;
-        _downloadStatus = 'Failed';
-      });
-      _showToast('Error: $e');
-    } finally {
-      // client.close();
-    }
-  }
-
-  void _navigateToDownloads() {
-    Navigator.push(
-      context,
-      MaterialPageRoute(builder: (context) => const DownloadsScreen()),
-    ).then((_) => _loadDownloadHistory());
-  }
-
-  void _showToast(String message) {
-    Fluttertoast.showToast(
-      msg: message,
-      toastLength: Toast.LENGTH_SHORT,
-      gravity: ToastGravity.BOTTOM,
-      backgroundColor: Colors.black87,
-      textColor: Colors.white,
-      fontSize: 14.0.sp,
-    );
-  }
-
-  void _showDownloadSnackBar({
-    required String filePath,
-    required String title,
-    required bool isAudio,
-    String? coverUrl,
-  }) {
-    if (!mounted) {
-      return;
-    }
-    final label = isAudio
-        ? 'تم حفظ الصوت في الموسيقى'
-        : 'تم حفظ الفيديو في المعرض';
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(label),
-        action: SnackBarAction(
-          label: 'فتح',
-          onPressed: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => LocalVideoPlayerScreen(
-                  filePath: filePath,
-                  title: title,
-                  coverUrl: coverUrl,
-                ),
-              ),
-            );
-          },
-        ),
-      ),
-    );
-  }
-
-  String _formatFileSize(int bytes) {
-    if (bytes < 1024) return '$bytes B';
-    if (bytes < 1048576) return '${(bytes / 1024).toStringAsFixed(1)} KB';
-    return '${(bytes / 1048576).toStringAsFixed(1)} MB';
-  }
-
-  String _formatDuration(Duration? duration) {
-    if (duration == null) return '0:00';
-    final minutes = duration.inMinutes;
-    final seconds = duration.inSeconds.remainder(60);
-    return '$minutes:${seconds.toString().padLeft(2, '0')}';
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: YoutubeScreen._ytDark,
-      body: Stack(
-        fit: StackFit.expand,
-        children: [
-          Container(
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                colors: [Color(0xFF0F0F0F), Color(0xFF1A1A1A)],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-            ),
-          ),
-          Positioned(
-            top: -120,
-            right: -80,
-            child: _GlowBubble(
-              size: 220,
-              color: YoutubeScreen._ytRed.withOpacity(0.18),
-            ),
-          ),
-          Positioned(
-            bottom: -140,
-            left: -90,
-            child: _GlowBubble(
-              size: 260,
-              color: const Color(0xFFFF6D6D).withOpacity(0.16),
-            ),
-          ),
-          SafeArea(
-            child: SingleChildScrollView(
-              padding: EdgeInsets.symmetric(horizontal: 20.w, vertical: 20.h),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _TopBar(onDownloadsPressed: _navigateToDownloads),
-                  SizedBox(height: 18.h),
-                  _HeroCard(),
-                  SizedBox(height: 16.h),
-                  _InputCard(
-                    urlController: _urlController,
-                    onPastePressed: _pasteFromClipboard,
-                    onPreparePressed: _getVideoInfo,
-                    isLoading: _isLoading,
-                  ),
-
-                  // عرض معلومات الفيديو
-                  if (_currentVideo != null) ...[
-                    SizedBox(height: 16.h),
-                    _VideoInfoCard(
-                      video: _currentVideo!,
-                      duration: _formatDuration(_currentVideo!.duration),
-                    ),
-                  ],
-
-                  // عرض خيارات التنزيل (فيديو / صوت)
-                  if (_availableFormats.isNotEmpty) ...[
-                    SizedBox(height: 20.h),
-                    _FormatTypeSelector(
-                      selectedType: _formatType,
-                      onTypeChanged: (type) {
-                        setState(() {
-                          _formatType = type;
-                          _selectedFormatId = null;
-                        });
-                      },
-                    ),
-                    SizedBox(height: 16.h),
-                  ],
-
-                  if (_availableFormats.any(
-                    (f) =>
-                        _formatType == 'video' ? !f.isAudioOnly : f.isAudioOnly,
-                  )) ...[
-                    _FormatsRow(
-                      formats: _availableFormats
-                          .where(
-                            (f) => _formatType == 'video'
-                                ? !f.isAudioOnly
-                                : f.isAudioOnly,
-                          )
-                          .toList(),
-                      selectedFormatId: _selectedFormatId,
-                      onFormatSelected: (formatId) {
-                        setState(() {
-                          _selectedFormatId = formatId;
-                        });
-                      },
-                      onDownloadPressed: _selectedFormatId != null
-                          ? () => _downloadVideo(_selectedFormatId!)
-                          : null,
-                      onCancel: _isDownloading
-                          ? () {
-                              setState(() {
-                                _isCancelDownload = true;
-                              });
-                            }
-                          : null,
-                      isDownloading: _isDownloading,
-                      downloadProgress: _downloadProgress,
-                      downloadStatus: _downloadStatus,
-                      formatFileSize: _formatFileSize,
-                    ),
-                  ],
-
-                  SizedBox(height: 20.h),
-                  _SectionHeader(title: 'yt_section_recent'.tr()),
-                  SizedBox(height: 10.h),
-
-                  // عرض التحميلات الحديثة
-                  if (_downloadHistory.isNotEmpty)
-                    _RecentDownloadsList(
-                      recentDownloads: _downloadHistory.take(3).toList(),
-                    )
-                  else
-                    _EmptyState(
-                      title: 'yt_empty_recent'.tr(),
-                      subtitle: 'yt_subtitle'.tr(),
-                    ),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
+      },
     );
   }
 }
@@ -1513,27 +799,6 @@ class _GlowBubble extends StatelessWidget {
       ),
     );
   }
-}
-
-// نموذج لتخزين معلومات الصيغة
-class VideoFormat {
-  final String id;
-  final String label;
-  final IconData icon;
-  final String quality;
-  final int size;
-  final bool isAudioOnly;
-  final String container;
-
-  VideoFormat({
-    required this.id,
-    required this.label,
-    required this.icon,
-    required this.quality,
-    required this.size,
-    required this.isAudioOnly,
-    required this.container,
-  });
 }
 
 // امتداد لتنسيق عرض المشاهدات

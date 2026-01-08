@@ -1,16 +1,16 @@
-import 'dart:async';
 import 'dart:io';
 import 'dart:math' as math;
 import 'dart:ui';
 
-import 'package:cross_file/cross_file.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter/services.dart';
-import 'package:share_plus/share_plus.dart';
 import 'package:audio_service/audio_service.dart' as audio_service;
 import 'package:just_audio/just_audio.dart';
+import 'package:get/get.dart';
 import 'package:video_player/video_player.dart';
+
+import '../controllers/local_video_player_controller.dart';
 
 const Color _ytRed = Color(0xFFE53935);
 const Color _ytDark = Color(0xFF0F0F0F);
@@ -38,329 +38,87 @@ class LocalVideoPlayerScreen extends StatefulWidget {
   State<LocalVideoPlayerScreen> createState() => _LocalVideoPlayerScreenState();
 }
 
-class _LocalVideoPlayerScreenState extends State<LocalVideoPlayerScreen>
-    with SingleTickerProviderStateMixin {
-  static final AudioPlayer _sharedAudioPlayer = AudioPlayer();
-  VideoPlayerController? _videoController;
-  AudioPlayer? _audioPlayer;
-  bool _isAudio = false;
-  bool _initialized = false;
-  bool _showControls = true;
-  Timer? _hideTimer;
-  String? _errorMessage;
-  double _playbackSpeed = 1.0;
-  late final AnimationController _pulseController;
-  bool _isFullscreen = false;
-  bool _isLocked = false;
+class _LocalVideoPlayerScreenState extends State<LocalVideoPlayerScreen> {
+  late final String _tag;
+  late final LocalVideoPlayerController _controller;
 
-  static const List<double> _speedOptions = [0.75, 1.0, 1.25, 1.5, 2.0];
-  List<Map<String, String>> get _audioQueue => widget.playlist ?? const [];
-  bool get _hasQueue => _audioQueue.length > 1;
+  VideoPlayerController? get _videoController => _controller.videoController;
+  AudioPlayer? get _audioPlayer => _controller.audioPlayer;
+  bool get _isAudio => _controller.isAudio;
+  bool get _initialized => _controller.initialized;
+  bool get _showControls => _controller.showControls;
+  String? get _errorMessage => _controller.errorMessage;
+  double get _playbackSpeed => _controller.playbackSpeed;
+  AnimationController get _pulseController => _controller.pulseController;
+  bool get _isFullscreen => _controller.isFullscreen;
+  bool get _isLocked => _controller.isLocked;
+  List<double> get _speedOptions => _controller.speedOptions;
+  List<Map<String, String>> get _audioQueue => _controller.audioQueue;
+  bool get _hasQueue => _controller.hasQueue;
 
   @override
   void initState() {
     super.initState();
-    _isAudio = _isAudioFile(widget.filePath);
-    _pulseController = AnimationController(
-      vsync: this,
-      duration: const Duration(seconds: 4),
-    )..repeat(reverse: true);
-    _initPlayer();
-  }
-
-  Future<void> _initPlayer() async {
-    try {
-      if (_isAudio) {
-        final player = _sharedAudioPlayer;
-        _audioPlayer = player;
-        await player.stop();
-        if (_audioQueue.isNotEmpty) {
-          final sources = _audioQueue.map((item) {
-            final path = item['path'] ?? '';
-            final title = item['title'] ?? 'Audio';
-            final coverPath = item['coverPath'];
-            final coverUrl = item['coverUrl'];
-            final artUri = _resolveArtUri(coverPath, coverUrl);
-            return AudioSource.file(
-              path,
-              tag: audio_service.MediaItem(
-                id: path,
-                title: title,
-                artUri: artUri,
-              ),
-            );
-          }).toList();
-          final playlistSource = ConcatenatingAudioSource(children: sources);
-          await player.setAudioSource(
-            playlistSource,
-            initialIndex: widget.initialIndex,
-          );
-        } else {
-          final artUri = _resolveArtUri(widget.coverPath, widget.coverUrl);
-          await player.setAudioSource(
-            AudioSource.file(
-              widget.filePath,
-              tag: audio_service.MediaItem(
-                id: widget.filePath,
-                title: widget.title,
-                artUri: artUri,
-              ),
-            ),
-          );
-        }
-        await player.setSpeed(_playbackSpeed);
-        await player.play();
-      } else {
-        final controller = VideoPlayerController.file(File(widget.filePath));
-        await controller.initialize();
-        await controller.play();
-        _videoController = controller;
-        _startHideTimer();
-      }
-      if (!mounted) {
-        return;
-      }
-      setState(() {
-        _initialized = true;
-      });
-    } catch (e) {
-      if (!mounted) {
-        return;
-      }
-      setState(() {
-        _errorMessage = 'Failed to load media';
-      });
-    }
+    _tag = '${widget.filePath}_${widget.initialIndex}';
+    _controller = Get.put(
+      LocalVideoPlayerController(
+        filePath: widget.filePath,
+        title: widget.title,
+        playlist: widget.playlist,
+        initialIndex: widget.initialIndex,
+        coverPath: widget.coverPath,
+        coverUrl: widget.coverUrl,
+      ),
+      tag: _tag,
+    );
   }
 
   @override
   void dispose() {
-    _hideTimer?.cancel();
-    _videoController?.dispose();
-    _audioPlayer?.stop();
-    _pulseController.dispose();
-    _exitFullscreen();
+    Get.delete<LocalVideoPlayerController>(tag: _tag);
     super.dispose();
   }
 
-  bool _isAudioFile(String path) {
-    final extension = path.split('.').last.toLowerCase();
-    const audioExtensions = {
-      'mp3',
-      'm4a',
-      'aac',
-      'wav',
-      'ogg',
-      'opus',
-      'flac',
-      'wma',
-      'mka',
-      'aiff',
-      'alac',
-      'webm',
-    };
-    return audioExtensions.contains(extension);
-  }
+  void _toggleControls() => _controller.toggleControls();
 
-  void _toggleControls() {
-    if (_isAudio) {
-      return;
-    }
-    if (_isLocked) {
-      return;
-    }
-    setState(() {
-      _showControls = !_showControls;
-    });
-    if (_showControls) {
-      _startHideTimer();
-    }
-  }
+  Future<void> _toggleFullscreen() => _controller.toggleFullscreen();
 
-  Future<void> _toggleFullscreen() async {
-    if (_isFullscreen) {
-      await _exitFullscreen();
-    } else {
-      await _enterFullscreen();
-    }
-  }
+  void _toggleLock() => _controller.toggleLock();
 
-  Future<void> _enterFullscreen() async {
-    _isFullscreen = true;
-    await SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
-    await SystemChrome.setPreferredOrientations([
-      DeviceOrientation.landscapeLeft,
-      DeviceOrientation.landscapeRight,
-    ]);
-    if (!mounted) {
-      return;
-    }
-    setState(() {});
-  }
+  void _cycleSpeed() => _controller.cycleSpeed();
 
-  Future<void> _exitFullscreen() async {
-    if (!_isFullscreen) {
-      return;
-    }
-    _isFullscreen = false;
-    await SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
-    await SystemChrome.setPreferredOrientations([
-      DeviceOrientation.portraitUp,
-      DeviceOrientation.portraitDown,
-    ]);
-    if (!mounted) {
-      return;
-    }
-    setState(() {});
-  }
+  Future<void> _shareCurrentFile() => _controller.shareCurrentFile();
 
-  void _toggleLock() {
-    if (_isAudio) {
-      return;
-    }
-    setState(() {
-      _isLocked = !_isLocked;
-      _showControls = !_isLocked;
-    });
-  }
+  Future<void> _togglePlayback() => _controller.togglePlayback();
 
-  Future<void> _shareCurrentFile() async {
-    try {
-      await Share.shareXFiles([XFile(widget.filePath)]);
-    } catch (_) {}
-  }
+  Future<void> _seekBy(Duration offset) => _controller.seekBy(offset);
 
-  void _startHideTimer() {
-    _hideTimer?.cancel();
-    _hideTimer = Timer(const Duration(seconds: 4), () {
-      if (mounted && _videoController?.value.isPlaying == true) {
-        setState(() {
-          _showControls = false;
-        });
-      }
-    });
-  }
+  Future<void> _toggleShuffle() => _controller.toggleShuffle();
 
-  Future<void> _togglePlayback() async {
-    if (_isAudio) {
-      if (_audioPlayer == null) {
-        return;
-      }
-      if (_audioPlayer!.playing) {
-        await _audioPlayer!.pause();
-      } else {
-        await _audioPlayer!.play();
-      }
-      return;
-    }
-    final controller = _videoController;
-    if (controller == null) {
-      return;
-    }
-    if (controller.value.isPlaying) {
-      await controller.pause();
-    } else {
-      await controller.play();
-    }
-    _startHideTimer();
-  }
+  Future<void> _cycleLoopMode() => _controller.cycleLoopMode();
 
-  Future<void> _seekBy(Duration offset) async {
-    if (_isAudio) {
-      final player = _audioPlayer;
-      if (player == null) {
-        return;
-      }
-      final position = player.position + offset;
-      final duration = player.duration ?? Duration.zero;
-      final target = position < Duration.zero
-          ? Duration.zero
-          : (position > duration ? duration : position);
-      await player.seek(target);
-      return;
-    }
-    final controller = _videoController;
-    if (controller == null) {
-      return;
-    }
-    final position = controller.value.position + offset;
-    final duration = controller.value.duration;
-    final target = position < Duration.zero
-        ? Duration.zero
-        : (position > duration ? duration : position);
-    await controller.seekTo(target);
-    _startHideTimer();
-  }
+  Future<void> _playNext() => _controller.playNext();
 
-  Future<void> _toggleShuffle() async {
-    final player = _audioPlayer;
-    if (player == null || !_hasQueue) {
-      return;
-    }
-    final enable = !player.shuffleModeEnabled;
-    if (enable) {
-      await player.shuffle();
-    }
-    await player.setShuffleModeEnabled(enable);
-  }
+  Future<void> _playPrevious() => _controller.playPrevious();
 
-  Future<void> _cycleLoopMode() async {
-    final player = _audioPlayer;
-    if (player == null) {
-      return;
-    }
-    final current = player.loopMode;
-    final next = current == LoopMode.off
-        ? LoopMode.all
-        : (current == LoopMode.all ? LoopMode.one : LoopMode.off);
-    await player.setLoopMode(next);
-  }
+  Future<void> _skipToNext() => _controller.playNext();
 
-  void _cycleSpeed() {
-    final nextIndex =
-        (_speedOptions.indexOf(_playbackSpeed) + 1) % _speedOptions.length;
-    _playbackSpeed = _speedOptions[nextIndex];
-    _audioPlayer?.setSpeed(_playbackSpeed);
-    _videoController?.setPlaybackSpeed(_playbackSpeed);
-    setState(() {});
-  }
+  Future<void> _skipToPrevious() => _controller.playPrevious();
 
-  Future<void> _skipToNext() async {
-    final player = _audioPlayer;
-    if (player == null) {
-      return;
-    }
-    if (player.hasNext) {
-      await player.seekToNext();
-    }
-  }
+  void _setSpeed(double speed) => _controller.setSpeed(speed);
 
-  Future<void> _skipToPrevious() async {
-    final player = _audioPlayer;
-    if (player == null) {
-      return;
-    }
-    if (player.hasPrevious) {
-      await player.seekToPrevious();
-    }
-  }
-
-  String _formatDuration(Duration duration) {
-    String twoDigits(int n) => n.toString().padLeft(2, '0');
-    final hours = duration.inHours;
-    final minutes = duration.inMinutes.remainder(60);
-    final seconds = duration.inSeconds.remainder(60);
-    if (hours > 0) {
-      return '${twoDigits(hours)}:${twoDigits(minutes)}:${twoDigits(seconds)}';
-    }
-    return '${twoDigits(minutes)}:${twoDigits(seconds)}';
-  }
+  String _formatDuration(Duration duration) => _controller.formatDuration(duration);
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: _ytDark,
-      body: _isAudio ? _buildAudioBody() : _buildVideoBody(),
+    return GetBuilder<LocalVideoPlayerController>(
+      tag: _tag,
+      builder: (_) {
+        return Scaffold(
+          backgroundColor: _ytDark,
+          body: _isAudio ? _buildAudioBody() : _buildVideoBody(),
+        );
+      },
     );
   }
 
@@ -414,10 +172,7 @@ class _LocalVideoPlayerScreenState extends State<LocalVideoPlayerScreen>
           ),
         ),
         SizedBox(width: 8.w),
-        _IconButton(
-          icon: Icons.share_rounded,
-          onTap: _shareCurrentFile,
-        ),
+        _IconButton(icon: Icons.share_rounded, onTap: _shareCurrentFile),
       ],
     );
   }
@@ -426,9 +181,7 @@ class _LocalVideoPlayerScreenState extends State<LocalVideoPlayerScreen>
     if (_isFullscreen) {
       return Stack(
         fit: StackFit.expand,
-        children: [
-          _buildVideoCard(fullscreen: true),
-        ],
+        children: [_buildVideoCard(fullscreen: true)],
       );
     }
     return Stack(
@@ -438,10 +191,7 @@ class _LocalVideoPlayerScreenState extends State<LocalVideoPlayerScreen>
         Positioned(
           top: -120,
           right: -80,
-          child: _GlowBubble(
-            size: 220,
-            color: _ytRed.withOpacity(0.18),
-          ),
+          child: _GlowBubble(size: 220, color: _ytRed.withOpacity(0.18)),
         ),
         Positioned(
           bottom: -140,
@@ -458,9 +208,7 @@ class _LocalVideoPlayerScreenState extends State<LocalVideoPlayerScreen>
               children: [
                 _buildTopBar(type: 'VIDEO'),
                 SizedBox(height: 16.h),
-                Expanded(
-                  child: _buildVideoCard(),
-                ),
+                Expanded(child: _buildVideoCard()),
               ],
             ),
           ),
@@ -620,9 +368,7 @@ class _LocalVideoPlayerScreenState extends State<LocalVideoPlayerScreen>
                   value: current,
                   max: max,
                   onChanged: (value) {
-                    controller.seekTo(
-                      Duration(milliseconds: value.round()),
-                    );
+                    controller.seekTo(Duration(milliseconds: value.round()));
                   },
                 ),
               ),
@@ -668,10 +414,7 @@ class _LocalVideoPlayerScreenState extends State<LocalVideoPlayerScreen>
         Positioned(
           top: -120,
           right: -80,
-          child: _GlowBubble(
-            size: 220,
-            color: _ytRed.withOpacity(0.18),
-          ),
+          child: _GlowBubble(size: 220, color: _ytRed.withOpacity(0.18)),
         ),
         Positioned(
           bottom: -140,
@@ -730,10 +473,20 @@ class _LocalVideoPlayerScreenState extends State<LocalVideoPlayerScreen>
                           child: Column(
                             children: [
                               _buildPlaybackControls(isAudio: true),
-                              SizedBox(height: 12.h),
-                              _buildAudioModeRow(),
-                              SizedBox(height: 12.h),
-                              _buildSpeedRow(),
+                              SizedBox(height: 20.h),
+                              Divider(color: Colors.white10),
+                              SizedBox(height: 10.h),
+                              Row(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
+                                children: [
+                                  _buildAudioModeRow(),
+                                  // SizedBox(height: 12.h),
+                                  _buildSpeedRow(),
+                                ],
+                              ),
+                              SizedBox(height: 10.h),
+                              Divider(color: Colors.white10),
                               if (_hasQueue) SizedBox(height: 12.h),
                               if (_hasQueue) _buildQueueButton(),
                             ],
@@ -902,14 +655,17 @@ class _LocalVideoPlayerScreenState extends State<LocalVideoPlayerScreen>
                               thumbColor: _ytRed,
                               overlayColor: _ytRed.withOpacity(0.2),
                               trackHeight: 3.h,
-                              thumbShape:
-                                  RoundSliderThumbShape(enabledThumbRadius: 6.r),
+                              thumbShape: RoundSliderThumbShape(
+                                enabledThumbRadius: 6.r,
+                              ),
                             ),
                             child: Slider(
                               value: current,
                               max: max,
                               onChanged: (value) {
-                                player.seek(Duration(milliseconds: value.round()));
+                                player.seek(
+                                  Duration(milliseconds: value.round()),
+                                );
                               },
                             ),
                           ),
@@ -955,9 +711,11 @@ class _LocalVideoPlayerScreenState extends State<LocalVideoPlayerScreen>
       builder: (context, snapshot) {
         final currentIndex = snapshot.data ?? widget.initialIndex;
         final nextItems = <Map<String, String>>[];
-        for (var i = currentIndex + 1;
-            i < _audioQueue.length && nextItems.length < 2;
-            i++) {
+        for (
+          var i = currentIndex + 1;
+          i < _audioQueue.length && nextItems.length < 2;
+          i++
+        ) {
           nextItems.add(_audioQueue[i]);
         }
         if (nextItems.isEmpty) {
@@ -1090,10 +848,8 @@ class _LocalVideoPlayerScreenState extends State<LocalVideoPlayerScreen>
                     height: 280.h,
                     child: ListView.separated(
                       itemCount: _audioQueue.length,
-                      separatorBuilder: (_, __) => Divider(
-                        height: 16.h,
-                        color: Colors.white12,
-                      ),
+                      separatorBuilder: (_, __) =>
+                          Divider(height: 16.h, color: Colors.white12),
                       itemBuilder: (context, index) {
                         final item = _audioQueue[index];
                         final isActive = index == currentIndex;
@@ -1111,8 +867,9 @@ class _LocalVideoPlayerScreenState extends State<LocalVideoPlayerScreen>
                             style: TextStyle(
                               color: Colors.white,
                               fontSize: 12.sp,
-                              fontWeight:
-                                  isActive ? FontWeight.w600 : FontWeight.w400,
+                              fontWeight: isActive
+                                  ? FontWeight.w600
+                                  : FontWeight.w400,
                             ),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
@@ -1142,41 +899,42 @@ class _LocalVideoPlayerScreenState extends State<LocalVideoPlayerScreen>
         builder: (context, snapshot) {
           final state = snapshot.data;
           final isPlaying = state?.playing ?? false;
-          final isBusy = state?.processingState == ProcessingState.loading ||
+          final isBusy =
+              state?.processingState == ProcessingState.loading ||
               state?.processingState == ProcessingState.buffering;
 
-        return Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            if (_hasQueue)
+          return Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              if (_hasQueue)
+                _ControlButton(
+                  icon: Icons.skip_previous_rounded,
+                  onTap: _playPrevious,
+                ),
+              if (_hasQueue) SizedBox(width: 12.w),
               _ControlButton(
-                icon: Icons.skip_previous_rounded,
-                onTap: _skipToPrevious,
+                icon: Icons.replay_10_rounded,
+                onTap: () => _seekBy(const Duration(seconds: -10)),
               ),
-            if (_hasQueue) SizedBox(width: 12.w),
-            _ControlButton(
-              icon: Icons.replay_10_rounded,
-              onTap: () => _seekBy(const Duration(seconds: -10)),
-            ),
-            SizedBox(width: 20.w),
-            _PlayButton(
-              isPlaying: isPlaying,
-              onTap: isBusy ? () {} : _togglePlayback,
-              isLoading: isBusy,
-            ),
-            SizedBox(width: 20.w),
-            _ControlButton(
-              icon: Icons.forward_10_rounded,
-              onTap: () => _seekBy(const Duration(seconds: 10)),
-            ),
-            if (_hasQueue) SizedBox(width: 12.w),
-            if (_hasQueue)
+              SizedBox(width: 20.w),
+              _PlayButton(
+                isPlaying: isPlaying,
+                onTap: isBusy ? () {} : _togglePlayback,
+                isLoading: isBusy,
+              ),
+              SizedBox(width: 20.w),
               _ControlButton(
-                icon: Icons.skip_next_rounded,
-                onTap: _skipToNext,
+                icon: Icons.forward_10_rounded,
+                onTap: () => _seekBy(const Duration(seconds: 10)),
               ),
-          ],
-        );
+              if (_hasQueue) SizedBox(width: 12.w),
+              if (_hasQueue)
+                _ControlButton(
+                  icon: Icons.skip_next_rounded,
+                  onTap: _skipToNext,
+                ),
+            ],
+          );
         },
       );
     }
@@ -1190,10 +948,7 @@ class _LocalVideoPlayerScreenState extends State<LocalVideoPlayerScreen>
           onTap: () => _seekBy(const Duration(seconds: -10)),
         ),
         SizedBox(width: 20.w),
-        _PlayButton(
-          isPlaying: videoPlaying,
-          onTap: _togglePlayback,
-        ),
+        _PlayButton(isPlaying: videoPlaying, onTap: _togglePlayback),
         SizedBox(width: 20.w),
         _ControlButton(
           icon: Icons.forward_10_rounded,
@@ -1217,7 +972,9 @@ class _LocalVideoPlayerScreenState extends State<LocalVideoPlayerScreen>
             builder: (context, snapshot) {
               final enabled = snapshot.data ?? player.shuffleModeEnabled;
               return _ModeButton(
-                icon: enabled ? Icons.shuffle_on_rounded : Icons.shuffle_rounded,
+                icon: enabled
+                    ? Icons.shuffle_on_rounded
+                    : Icons.shuffle_rounded,
                 label: 'عشوائي',
                 isActive: enabled,
                 onTap: _toggleShuffle,
@@ -1293,9 +1050,7 @@ class _ModeButton extends StatelessWidget {
         decoration: BoxDecoration(
           color: isActive ? _ytRed.withOpacity(0.2) : Colors.white10,
           borderRadius: BorderRadius.circular(14.r),
-          border: Border.all(
-            color: isActive ? _ytRed : Colors.white12,
-          ),
+          border: Border.all(color: isActive ? _ytRed : Colors.white12),
         ),
         child: Row(
           children: [
@@ -1462,38 +1217,35 @@ class _AudioArtwork extends StatelessWidget {
                 border: Border.all(color: Colors.white12),
               ),
             ),
-          Container(
-            width: 110.w,
-            height: 110.w,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: Colors.black.withOpacity(0.4),
-              border: Border.all(color: Colors.white24),
-              image: coverImage == null
-                  ? null
-                  : DecorationImage(
-                      image: coverImage!,
-                      fit: BoxFit.cover,
+            Container(
+              width: 110.w,
+              height: 110.w,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: Colors.black.withOpacity(0.4),
+                border: Border.all(color: Colors.white24),
+                image: coverImage == null
+                    ? null
+                    : DecorationImage(image: coverImage!, fit: BoxFit.cover),
+              ),
+              child: coverImage == null
+                  ? Icon(
+                      Icons.graphic_eq_rounded,
+                      color: Colors.white,
+                      size: 54.sp,
+                    )
+                  : Container(
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: Colors.black.withOpacity(0.25),
+                      ),
+                      child: Icon(
+                        Icons.music_note_rounded,
+                        color: Colors.white70,
+                        size: 40.sp,
+                      ),
                     ),
             ),
-            child: coverImage == null
-                ? Icon(
-                    Icons.graphic_eq_rounded,
-                    color: Colors.white,
-                    size: 54.sp,
-                  )
-                : Container(
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: Colors.black.withOpacity(0.25),
-                    ),
-                    child: Icon(
-                      Icons.music_note_rounded,
-                      color: Colors.white70,
-                      size: 40.sp,
-                    ),
-                  ),
-          ),
           ],
         ),
       ),
@@ -1618,13 +1370,7 @@ class _GlowBubble extends StatelessWidget {
       decoration: BoxDecoration(
         shape: BoxShape.circle,
         color: color,
-        boxShadow: [
-          BoxShadow(
-            color: color,
-            blurRadius: 120,
-            spreadRadius: 20,
-          ),
-        ],
+        boxShadow: [BoxShadow(color: color, blurRadius: 120, spreadRadius: 20)],
       ),
     );
   }
@@ -1648,7 +1394,11 @@ class _ErrorState extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.error_outline_rounded, color: Colors.white70, size: 32.sp),
+            Icon(
+              Icons.error_outline_rounded,
+              color: Colors.white70,
+              size: 32.sp,
+            ),
             SizedBox(height: 12.h),
             Text(
               message,

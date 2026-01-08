@@ -2,18 +2,13 @@ import 'dart:io';
 
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-import 'package:cross_file/cross_file.dart';
-import 'package:share_plus/share_plus.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:get/get.dart' hide Trans;
 
 import '../../../core/theme/colors.dart';
 import '../../statuses/status_media.dart';
-import '../../statuses/status_media_repository.dart';
 import '../../statuses/widgets/status_media_widgets.dart';
-
-enum _FavoriteFilter { all, photos, videos }
+import '../controllers/favorites_controller.dart';
 
 class FavoritesScreen extends StatefulWidget {
   const FavoritesScreen({super.key});
@@ -23,245 +18,94 @@ class FavoritesScreen extends StatefulWidget {
 }
 
 class _FavoritesScreenState extends State<FavoritesScreen> {
-  final StatusMediaRepository _repository = StatusMediaRepository();
-  final TextEditingController _searchController = TextEditingController();
-  final List<StatusMedia> _items = [];
-  Set<String> _favorites = {};
-  Set<String> _saved = {};
-  bool _loading = true;
-  bool _sortNewest = true;
-  _FavoriteFilter _filter = _FavoriteFilter.all;
-  String _searchQuery = '';
+  late final FavoritesController _controller;
 
   @override
   void initState() {
     super.initState();
-    _loadFavorites();
-    _loadSaved();
+    _controller = Get.put(FavoritesController());
   }
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    _loadSaved();
+    _controller.loadSaved();
   }
 
   @override
   void dispose() {
-    _searchController.dispose();
+    Get.delete<FavoritesController>();
     super.dispose();
-  }
-
-  Future<void> _loadFavorites() async {
-    setState(() {
-      _loading = true;
-    });
-    final prefs = await SharedPreferences.getInstance();
-    final stored = prefs.getStringList('favorite_statuses') ?? [];
-    final items = await _repository.loadFromPaths(stored);
-    final existingPaths = items.map((item) => item.path).toSet();
-    final cleaned = stored.where(existingPaths.contains).toList();
-    if (cleaned.length != stored.length) {
-      await prefs.setStringList('favorite_statuses', cleaned);
-    }
-    if (!mounted) {
-      return;
-    }
-    setState(() {
-      _favorites = cleaned.toSet();
-      _items
-        ..clear()
-        ..addAll(items);
-      _loading = false;
-    });
-  }
-
-  Future<void> _loadSaved() async {
-    final prefs = await SharedPreferences.getInstance();
-    final stored = prefs.getStringList('saved_statuses') ?? [];
-    if (!mounted) {
-      return;
-    }
-    setState(() {
-      _saved = stored.toSet();
-    });
-  }
-
-  Future<void> _toggleFavorite(StatusMedia item) async {
-    final next = <String>{..._favorites};
-    if (next.contains(item.path)) {
-      next.remove(item.path);
-      _items.removeWhere((entry) => entry.path == item.path);
-    } else {
-      next.add(item.path);
-    }
-    setState(() {
-      _favorites = next;
-    });
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setStringList('favorite_statuses', next.toList());
-  }
-
-  bool _isFavorite(StatusMedia item) => _favorites.contains(item.path);
-
-  List<StatusMedia> _applyFilters(List<StatusMedia> items) {
-    final query = _searchQuery.trim().toLowerCase();
-    final filtered = items.where((item) {
-      if (_filter == _FavoriteFilter.photos && item.isVideo) {
-        return false;
-      }
-      if (_filter == _FavoriteFilter.videos && !item.isVideo) {
-        return false;
-      }
-      if (query.isEmpty) {
-        return true;
-      }
-      final name = item.path.split('/').last.toLowerCase();
-      return name.contains(query);
-    }).toList();
-    filtered.sort((a, b) => _sortNewest
-        ? b.createdAt.compareTo(a.createdAt)
-        : a.createdAt.compareTo(b.createdAt));
-    return filtered;
-  }
-
-  Future<void> _saveToGallery(StatusMedia item) async {
-    if (_saved.contains(item.path)) {
-      if (!mounted) {
-        return;
-      }
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('status_already_saved'.tr())),
-      );
-      return;
-    }
-    final saved = await _repository.saveToGallery(item);
-    if (!mounted) {
-      return;
-    }
-    if (saved) {
-      final next = <String>{..._saved, item.path};
-      _saved = next;
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setStringList('saved_statuses', next.toList());
-    }
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(saved ? 'status_saved'.tr() : 'status_save_failed'.tr()),
-      ),
-    );
-  }
-
-  Future<void> _shareItem(StatusMedia item) async {
-    try {
-      await Share.shareXFiles([XFile(item.path)]);
-    } catch (_) {
-      if (!mounted) {
-        return;
-      }
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('status_share_failed'.tr())),
-      );
-    }
-  }
-
-  Future<void> _copyPath(StatusMedia item) async {
-    await Clipboard.setData(ClipboardData(text: item.path));
-    if (!mounted) {
-      return;
-    }
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('status_copy_done'.tr())),
-    );
-  }
-
-  Future<void> _deleteItem(StatusMedia item) async {
-    final deleted = await _repository.deleteFromGallery(item);
-    if (!mounted) {
-      return;
-    }
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          deleted ? 'status_deleted'.tr() : 'status_delete_failed'.tr(),
-        ),
-      ),
-    );
   }
 
   @override
   Widget build(BuildContext context) {
-    final filteredItems = _applyFilters(_items);
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      appBar: AppBar(
-        title: Text('status_favorites_title'.tr()),
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        foregroundColor: AppColors.textPrimary,
-      ),
-      body: Stack(
-        fit: StackFit.expand,
-        children: [
-          Container(
-            decoration: const BoxDecoration(gradient: AppColors.mistGradient),
+    return GetBuilder<FavoritesController>(
+      builder: (controller) {
+        final filteredItems = controller.applyFilters(controller.items);
+        return Scaffold(
+          backgroundColor: AppColors.background,
+          appBar: AppBar(
+            title: Text('status_favorites_title'.tr()),
+            backgroundColor: Colors.transparent,
+            elevation: 0,
+            foregroundColor: AppColors.textPrimary,
           ),
-          SafeArea(
-            child: Padding(
-              padding: EdgeInsets.symmetric(horizontal: 20.w, vertical: 16.h),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _FavoritesFilterBar(
-                    controller: _searchController,
-                    onChanged: (value) {
-                      setState(() {
-                        _searchQuery = value;
-                      });
-                    },
-                    onClear: () {
-                      _searchController.clear();
-                      setState(() {
-                        _searchQuery = '';
-                      });
-                    },
-                    sortNewest: _sortNewest,
-                    onToggleSort: () {
-                      setState(() {
-                        _sortNewest = !_sortNewest;
-                      });
-                    },
-                    onRefresh: _loadFavorites,
-                  ),
-                  SizedBox(height: 10.h),
-                  _FilterChips(
-                    value: _filter,
-                    onChanged: (value) {
-                      setState(() {
-                        _filter = value;
-                      });
-                    },
-                  ),
-                  SizedBox(height: 16.h),
-                  Expanded(
-                    child: _FavoritesGrid(
-                      items: filteredItems,
-                      isLoading: _loading,
-                      onSave: _saveToGallery,
-                      onShare: _shareItem,
-                      onCopy: _copyPath,
-                      onDelete: _deleteItem,
-                      onToggleFavorite: _toggleFavorite,
-                      isFavorite: _isFavorite,
-                      canDelete: _repository.isSavedMediaPath,
-                    ),
-                  ),
-                ],
+          body: Stack(
+            fit: StackFit.expand,
+            children: [
+              Container(
+                decoration: const BoxDecoration(
+                  gradient: AppColors.mistGradient,
+                ),
               ),
-            ),
+              SafeArea(
+                child: Padding(
+                  padding: EdgeInsets.symmetric(
+                    horizontal: 20.w,
+                    vertical: 16.h,
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _FavoritesFilterBar(
+                        controller: controller.searchController,
+                        onChanged: controller.updateSearch,
+                        onClear: controller.clearSearch,
+                        sortNewest: controller.sortNewest,
+                        onToggleSort: controller.toggleSort,
+                        onRefresh: controller.loadFavorites,
+                      ),
+                      SizedBox(height: 10.h),
+                      _FilterChips(
+                        value: controller.filter,
+                        onChanged: controller.setFilter,
+                      ),
+                      SizedBox(height: 16.h),
+                      Expanded(
+                        child: _FavoritesGrid(
+                          items: filteredItems,
+                          isLoading: controller.loading,
+                          onSave: (item) =>
+                              controller.saveToGallery(context, item),
+                          onShare: (item) =>
+                              controller.shareItem(context, item),
+                          onCopy: (item) => controller.copyPath(context, item),
+                          onDelete: (item) =>
+                              controller.deleteItem(context, item),
+                          onToggleFavorite: controller.toggleFavorite,
+                          isFavorite: controller.isFavorite,
+                          canDelete: controller.repository.isSavedMediaPath,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 }
@@ -369,11 +213,7 @@ class _FilterIconButton extends StatelessWidget {
             borderRadius: BorderRadius.circular(12.r),
             border: Border.all(color: AppColors.border),
           ),
-          child: Icon(
-            icon,
-            color: AppColors.textSecondary,
-            size: 18.sp,
-          ),
+          child: Icon(icon, color: AppColors.textSecondary, size: 18.sp),
         ),
       ),
     );
@@ -381,13 +221,10 @@ class _FilterIconButton extends StatelessWidget {
 }
 
 class _FilterChips extends StatelessWidget {
-  final _FavoriteFilter value;
-  final ValueChanged<_FavoriteFilter> onChanged;
+  final FavoriteFilter value;
+  final ValueChanged<FavoriteFilter> onChanged;
 
-  const _FilterChips({
-    required this.value,
-    required this.onChanged,
-  });
+  const _FilterChips({required this.value, required this.onChanged});
 
   @override
   Widget build(BuildContext context) {
@@ -396,18 +233,18 @@ class _FilterChips extends StatelessWidget {
       children: [
         ChoiceChip(
           label: Text('status_filter_all'.tr()),
-          selected: value == _FavoriteFilter.all,
-          onSelected: (_) => onChanged(_FavoriteFilter.all),
+          selected: value == FavoriteFilter.all,
+          onSelected: (_) => onChanged(FavoriteFilter.all),
         ),
         ChoiceChip(
           label: Text('status_filter_photos'.tr()),
-          selected: value == _FavoriteFilter.photos,
-          onSelected: (_) => onChanged(_FavoriteFilter.photos),
+          selected: value == FavoriteFilter.photos,
+          onSelected: (_) => onChanged(FavoriteFilter.photos),
         ),
         ChoiceChip(
           label: Text('status_filter_videos'.tr()),
-          selected: value == _FavoriteFilter.videos,
-          onSelected: (_) => onChanged(_FavoriteFilter.videos),
+          selected: value == FavoriteFilter.videos,
+          onSelected: (_) => onChanged(FavoriteFilter.videos),
         ),
       ],
     );
@@ -527,10 +364,7 @@ class _FavoriteOverlay extends StatelessWidget {
   final bool isFavorite;
   final VoidCallback onTap;
 
-  const _FavoriteOverlay({
-    required this.isFavorite,
-    required this.onTap,
-  });
+  const _FavoriteOverlay({required this.isFavorite, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -558,10 +392,7 @@ class _EmptyFavoritesState extends StatelessWidget {
   final String title;
   final String subtitle;
 
-  const _EmptyFavoritesState({
-    required this.title,
-    required this.subtitle,
-  });
+  const _EmptyFavoritesState({required this.title, required this.subtitle});
 
   @override
   Widget build(BuildContext context) {
@@ -575,8 +406,11 @@ class _EmptyFavoritesState extends StatelessWidget {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.star_border_rounded,
-              color: AppColors.primary.withOpacity(0.6), size: 28.sp),
+          Icon(
+            Icons.star_border_rounded,
+            color: AppColors.primary.withOpacity(0.6),
+            size: 28.sp,
+          ),
           SizedBox(height: 12.h),
           Text(
             title,

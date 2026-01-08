@@ -1,6 +1,9 @@
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:get/get.dart' hide Trans;
+
+import '../controllers/instagram_controller.dart';
 
 class InstagramScreen extends StatelessWidget {
   const InstagramScreen({super.key});
@@ -12,57 +15,63 @@ class InstagramScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFFFF7F9),
-      body: Stack(
-        fit: StackFit.expand,
-        children: [
-          Container(
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                colors: [Color(0xFFFFF7F9), Color(0xFFFFEDF2)],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
+    return GetBuilder<InstagramController>(
+      init: InstagramController(),
+      builder: (_) {
+        return Scaffold(
+          backgroundColor: const Color(0xFFFFF7F9),
+          body: Stack(
+            fit: StackFit.expand,
+            children: [
+              Container(
+                decoration: const BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [Color(0xFFFFF7F9), Color(0xFFFFEDF2)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                ),
               ),
-            ),
-          ),
-          Positioned(
-            top: -120,
-            left: -60,
-            child: _GlowBubble(
-              size: 240,
-              color: _igPurple.withOpacity(0.18),
-            ),
-          ),
-          Positioned(
-            bottom: -130,
-            right: -80,
-            child: _GlowBubble(
-              size: 280,
-              color: _igOrange.withOpacity(0.2),
-            ),
-          ),
-          SafeArea(
-            child: SingleChildScrollView(
-              padding: EdgeInsets.symmetric(horizontal: 20.w, vertical: 20.h),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _TopBar(),
-                  SizedBox(height: 18.h),
-                  _HeroCard(),
-                  SizedBox(height: 16.h),
-                  _InputCard(),
-                  SizedBox(height: 16.h),
-                  _Collections(),
-                  SizedBox(height: 20.h),
-                  _Insights(),
-                ],
+              Positioned(
+                top: -120,
+                left: -60,
+                child: _GlowBubble(
+                  size: 240,
+                  color: _igPurple.withOpacity(0.18),
+                ),
               ),
-            ),
+              Positioned(
+                bottom: -130,
+                right: -80,
+                child: _GlowBubble(
+                  size: 280,
+                  color: _igOrange.withOpacity(0.2),
+                ),
+              ),
+              SafeArea(
+                child: SingleChildScrollView(
+                  padding:
+                      EdgeInsets.symmetric(horizontal: 20.w, vertical: 20.h),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _TopBar(),
+                      SizedBox(height: 18.h),
+                      _HeroCard(),
+                      SizedBox(height: 16.h),
+                      _InputCard(),
+                      SizedBox(height: 16.h),
+                      _Collections(),
+                      SizedBox(height: 20.h),
+                      _Insights(),
+                    ],
+                  ),
+                ),
+              ),
+            ],
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 }

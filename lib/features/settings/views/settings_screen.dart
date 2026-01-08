@@ -1,203 +1,170 @@
-import 'dart:io';
-
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:get/get.dart' hide Trans;
 import 'package:permission_handler/permission_handler.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../core/theme/colors.dart';
-import '../../statuses/status_media_repository.dart';
+import '../controllers/settings_controller.dart';
 
-class SettingsScreen extends StatefulWidget {
+class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
 
   @override
-  State<SettingsScreen> createState() => _SettingsScreenState();
-}
-
-class _SettingsScreenState extends State<SettingsScreen> {
-  final StatusMediaRepository _repository = StatusMediaRepository();
-  PermissionStatus _storageStatus = PermissionStatus.denied;
-  PermissionStatus _manageStatus = PermissionStatus.denied;
-  int _savedCount = 0;
-  bool _loading = true;
-
-  bool get _isAndroid => Platform.isAndroid;
-
-  @override
-  void initState() {
-    super.initState();
-    _refreshStatus();
-  }
-
-  Future<void> _refreshStatus() async {
-    setState(() {
-      _loading = true;
-    });
-    if (_isAndroid) {
-      _storageStatus = await Permission.storage.status;
-      _manageStatus = await Permission.manageExternalStorage.status;
-    }
-    _savedCount = await _repository.countSavedCopies();
-    if (!mounted) {
-      return;
-    }
-    setState(() {
-      _loading = false;
-    });
-  }
-
-  Future<void> _clearSavedCopies() async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text('status_settings_clear_title'.tr()),
-        content: Text('status_settings_clear_message'.tr()),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: Text('skip'.tr()),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: Text('done'.tr()),
-          ),
-        ],
-      ),
-    );
-    if (confirmed != true) {
-      return;
-    }
-    final deleted = await _repository.deleteSavedCopies();
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setStringList('saved_statuses', []);
-    if (!mounted) {
-      return;
-    }
-    setState(() {
-      _savedCount = 0;
-    });
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          deleted > 0
-              ? 'status_settings_clear_done'.tr()
-              : 'status_settings_clear_empty'.tr(),
-        ),
-      ),
-    );
-  }
-
-  @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      appBar: AppBar(
-        title: Text('status_settings_title'.tr()),
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        foregroundColor: AppColors.textPrimary,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh_rounded),
-            onPressed: _refreshStatus,
+    final isArabic = context.locale.languageCode == 'ar';
+
+    return GetBuilder<SettingsController>(
+      init: SettingsController(),
+      builder: (controller) {
+        return Scaffold(
+          backgroundColor: AppColors.background,
+          appBar: AppBar(
+            title: Text('status_settings_title'.tr()),
+            backgroundColor: Colors.transparent,
+            elevation: 0,
+            foregroundColor: AppColors.textPrimary,
+            actions: [
+              IconButton(
+                icon: const Icon(Icons.refresh_rounded),
+                onPressed: controller.refreshStatus,
+              ),
+            ],
           ),
-        ],
-      ),
-      body: Stack(
-        fit: StackFit.expand,
-        children: [
-          Container(
-            decoration: const BoxDecoration(gradient: AppColors.mistGradient),
+          body: Stack(
+            fit: StackFit.expand,
+            children: [
+              Container(
+                decoration: const BoxDecoration(gradient: AppColors.mistGradient),
+              ),
+              SafeArea(
+                child: ListView(
+                  padding:
+                      EdgeInsets.symmetric(horizontal: 20.w, vertical: 16.h),
+                  children: [
+                    _SettingsCard(
+                      title: 'settings_language_title'.tr(),
+                      subtitle: 'settings_language_subtitle'.tr(),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: _SettingsButton(
+                              text: 'settings_language_ar'.tr(),
+                              onPressed: () {
+                                if (!isArabic) {
+                                  context.setLocale(const Locale('ar'));
+                                }
+                              },
+                              isOutlined: !isArabic,
+                            ),
+                          ),
+                          SizedBox(width: 12.w),
+                          Expanded(
+                            child: _SettingsButton(
+                              text: 'settings_language_en'.tr(),
+                              onPressed: () {
+                                if (isArabic) {
+                                  context.setLocale(const Locale('en'));
+                                }
+                              },
+                              isOutlined: isArabic,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    SizedBox(height: 16.h),
+                    _SettingsCard(
+                      title: 'status_settings_permissions'.tr(),
+                      subtitle: controller.isAndroid
+                          ? 'status_settings_permissions_subtitle'.tr()
+                          : 'status_android_only_subtitle'.tr(),
+                      child: controller.isAndroid
+                          ? Column(
+                              children: [
+                                _PermissionRow(
+                                  label:
+                                      'status_settings_permission_storage'.tr(),
+                                  status: controller.storageStatus,
+                                ),
+                                SizedBox(height: 10.h),
+                                _PermissionRow(
+                                  label:
+                                      'status_settings_permission_manage'.tr(),
+                                  status: controller.manageStatus,
+                                ),
+                                SizedBox(height: 12.h),
+                                _SettingsButton(
+                                  text: 'status_settings_open_settings'.tr(),
+                                  onPressed: openAppSettings,
+                                ),
+                              ],
+                            )
+                          : const SizedBox.shrink(),
+                    ),
+                    SizedBox(height: 16.h),
+                    _SettingsCard(
+                      title: 'status_settings_storage'.tr(),
+                      subtitle: 'status_settings_storage_subtitle'.tr(),
+                      child: controller.loading
+                          ? const Center(
+                              child: CircularProgressIndicator(
+                                  color: AppColors.primary),
+                            )
+                          : Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'status_settings_saved_count'.tr(
+                                    namedArgs: {
+                                      'count': '${controller.savedCount}'
+                                    },
+                                  ),
+                                  style: TextStyle(
+                                    color: AppColors.textSecondary,
+                                    fontSize: 12.sp,
+                                  ),
+                                ),
+                                SizedBox(height: 12.h),
+                                _SettingsButton(
+                                  text: 'status_settings_clear_button'.tr(),
+                                  onPressed: controller.savedCount == 0
+                                      ? null
+                                      : () => controller
+                                          .clearSavedCopies(context),
+                                  isOutlined: true,
+                                ),
+                              ],
+                            ),
+                    ),
+                    SizedBox(height: 16.h),
+                    _SettingsCard(
+                      title: 'status_settings_guide'.tr(),
+                      subtitle: 'status_how_title'.tr(),
+                      child: Column(
+                        children: [
+                          _GuideStep(
+                            index: 1,
+                            text: 'status_how_step_1'.tr(),
+                          ),
+                          _GuideStep(
+                            index: 2,
+                            text: 'status_how_step_2'.tr(),
+                          ),
+                          _GuideStep(
+                            index: 3,
+                            text: 'status_how_step_3'.tr(),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
-          SafeArea(
-            child: ListView(
-              padding: EdgeInsets.symmetric(horizontal: 20.w, vertical: 16.h),
-              children: [
-                _SettingsCard(
-                  title: 'status_settings_permissions'.tr(),
-                  subtitle: _isAndroid
-                      ? 'status_settings_permissions_subtitle'.tr()
-                      : 'status_android_only_subtitle'.tr(),
-                  child: _isAndroid
-                      ? Column(
-                          children: [
-                            _PermissionRow(
-                              label: 'status_settings_permission_storage'.tr(),
-                              status: _storageStatus,
-                            ),
-                            SizedBox(height: 10.h),
-                            _PermissionRow(
-                              label: 'status_settings_permission_manage'.tr(),
-                              status: _manageStatus,
-                            ),
-                            SizedBox(height: 12.h),
-                            _SettingsButton(
-                              text: 'status_settings_open_settings'.tr(),
-                              onPressed: openAppSettings,
-                            ),
-                          ],
-                        )
-                      : const SizedBox.shrink(),
-                ),
-                SizedBox(height: 16.h),
-                _SettingsCard(
-                  title: 'status_settings_storage'.tr(),
-                  subtitle: 'status_settings_storage_subtitle'.tr(),
-                  child: _loading
-                      ? const Center(
-                          child: CircularProgressIndicator(
-                              color: AppColors.primary),
-                        )
-                      : Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'status_settings_saved_count'.tr(
-                                namedArgs: {'count': '$_savedCount'},
-                              ),
-                              style: TextStyle(
-                                color: AppColors.textSecondary,
-                                fontSize: 12.sp,
-                              ),
-                            ),
-                            SizedBox(height: 12.h),
-                            _SettingsButton(
-                              text: 'status_settings_clear_button'.tr(),
-                              onPressed:
-                                  _savedCount == 0 ? null : _clearSavedCopies,
-                              isOutlined: true,
-                            ),
-                          ],
-                        ),
-                ),
-                SizedBox(height: 16.h),
-                _SettingsCard(
-                  title: 'status_settings_guide'.tr(),
-                  subtitle: 'status_how_title'.tr(),
-                  child: Column(
-                    children: [
-                      _GuideStep(
-                        index: 1,
-                        text: 'status_how_step_1'.tr(),
-                      ),
-                      _GuideStep(
-                        index: 2,
-                        text: 'status_how_step_2'.tr(),
-                      ),
-                      _GuideStep(
-                        index: 3,
-                        text: 'status_how_step_3'.tr(),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
+        );
+      },
     );
   }
 }

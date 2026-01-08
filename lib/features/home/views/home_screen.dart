@@ -2,413 +2,184 @@ import 'dart:io';
 
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:get/get.dart' hide Trans;
 import 'package:intl/intl.dart';
 import 'package:permission_handler/permission_handler.dart';
-import 'package:cross_file/cross_file.dart';
-import 'package:share_plus/share_plus.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'package:url_launcher/url_launcher.dart';
+
 import '../../../core/theme/colors.dart';
 import '../../../core/widgets/custom_button.dart';
-import '../../../core/routes/routes.dart';
 import '../../statuses/status_media.dart';
-import '../../statuses/status_media_repository.dart';
 import '../../statuses/widgets/status_media_widgets.dart';
+import '../controllers/home_controller.dart';
 
-class HomeScreen extends StatefulWidget {
+class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
 
   @override
-  State<HomeScreen> createState() => _HomeScreenState();
-}
-
-class _HomeScreenState extends State<HomeScreen> {
-  final StatusMediaRepository _repository = StatusMediaRepository();
-  final TextEditingController _searchController = TextEditingController();
-  final List<StatusMedia> _items = [];
-  bool _loading = true;
-  bool _permissionDenied = false;
-  bool _favoritesOnly = false;
-  bool _sortNewest = true;
-  String _searchQuery = '';
-  Set<String> _favorites = {};
-  Set<String> _saved = {};
-
-  bool get _isAndroid => Platform.isAndroid;
-
-  @override
-  void initState() {
-    super.initState();
-    _loadFavorites();
-    _loadSaved();
-    _loadMedia();
-  }
-
-  @override
-  void dispose() {
-    _searchController.dispose();
-    super.dispose();
-  }
-
-  Future<void> _loadMedia({bool showMessage = false}) async {
-    setState(() {
-      _loading = true;
-      _permissionDenied = false;
-    });
-    await _loadSaved();
-
-    if (!_isAndroid) {
-      setState(() {
-        _items.clear();
-        _loading = false;
-      });
-      return;
-    }
-
-    final hasPermission = await _ensureStoragePermission();
-    if (!hasPermission) {
-      if (mounted) {
-        setState(() {
-          _items.clear();
-          _permissionDenied = true;
-          _loading = false;
-        });
-      }
-      return;
-    }
-
-    final items = await _repository.listWhatsAppStatuses();
-    if (!mounted) {
-      return;
-    }
-    setState(() {
-      _items
-        ..clear()
-        ..addAll(items);
-      _loading = false;
-    });
-
-    if (showMessage && mounted) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('status_scan_done'.tr())));
-    }
-  }
-
-  Future<void> _loadFavorites() async {
-    final prefs = await SharedPreferences.getInstance();
-    final stored = prefs.getStringList('favorite_statuses') ?? [];
-    if (!mounted) {
-      return;
-    }
-    setState(() {
-      _favorites = stored.toSet();
-    });
-  }
-
-  Future<void> _loadSaved() async {
-    final prefs = await SharedPreferences.getInstance();
-    final stored = prefs.getStringList('saved_statuses') ?? [];
-    if (!mounted) {
-      return;
-    }
-    setState(() {
-      _saved = stored.toSet();
-    });
-  }
-
-  Future<void> _markSaved(StatusMedia item) async {
-    final next = <String>{..._saved, item.path};
-    setState(() {
-      _saved = next;
-    });
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setStringList('saved_statuses', next.toList());
-  }
-
-  bool _isSaved(StatusMedia item) => _saved.contains(item.path);
-
-  Future<void> _toggleFavorite(StatusMedia item) async {
-    final path = item.path;
-    final next = <String>{..._favorites};
-    if (next.contains(path)) {
-      next.remove(path);
-    } else {
-      next.add(path);
-    }
-    setState(() {
-      _favorites = next;
-    });
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setStringList('favorite_statuses', next.toList());
-  }
-
-  bool _isFavorite(StatusMedia item) => _favorites.contains(item.path);
-
-  List<StatusMedia> _applyFilters(List<StatusMedia> items) {
-    final query = _searchQuery.trim().toLowerCase();
-    final filtered = items.where((item) {
-      if (_favoritesOnly && !_favorites.contains(item.path)) {
-        return false;
-      }
-      if (query.isEmpty) {
-        return true;
-      }
-      final name = item.path.split('/').last.toLowerCase();
-      return name.contains(query);
-    }).toList();
-    filtered.sort(
-      (a, b) => _sortNewest
-          ? b.createdAt.compareTo(a.createdAt)
-          : a.createdAt.compareTo(b.createdAt),
-    );
-    return filtered;
-  }
-
-  Future<bool> _ensureStoragePermission() async {
-    if (!_isAndroid) {
-      return true;
-    }
-    final storageStatus = await Permission.storage.request();
-    if (storageStatus.isGranted) {
-      return true;
-    }
-    final manageStatus = await Permission.manageExternalStorage.request();
-    return manageStatus.isGranted;
-  }
-
-  Future<void> _saveToGallery(StatusMedia item) async {
-    if (_isSaved(item)) {
-      if (!mounted) {
-        return;
-      }
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('status_already_saved'.tr())));
-      return;
-    }
-    final saved = await _repository.saveToGallery(item);
-    if (!mounted) {
-      return;
-    }
-    if (saved) {
-      await _markSaved(item);
-    }
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(saved ? 'status_saved'.tr() : 'status_save_failed'.tr()),
-      ),
-    );
-  }
-
-  Future<void> _shareItem(StatusMedia item) async {
-    try {
-      await Share.shareXFiles([XFile(item.path)]);
-    } catch (_) {
-      if (!mounted) {
-        return;
-      }
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('status_share_failed'.tr())));
-    }
-  }
-
-  Future<void> _copyPath(StatusMedia item) async {
-    await Clipboard.setData(ClipboardData(text: item.path));
-    if (!mounted) {
-      return;
-    }
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text('status_copy_done'.tr())));
-  }
-
-  Future<void> _deleteItem(StatusMedia item) async {
-    final deleted = await _repository.deleteFromGallery(item);
-    if (!mounted) {
-      return;
-    }
-    if (deleted) {
-      setState(() {
-        _items.removeWhere((entry) => entry.path == item.path);
-        _favorites.remove(item.path);
-      });
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setStringList('favorite_statuses', _favorites.toList());
-    }
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          deleted ? 'status_deleted'.tr() : 'status_delete_failed'.tr(),
-        ),
-      ),
-    );
-  }
-
-  Future<void> _openWhatsApp() async {
-    final uri = Uri.parse('whatsapp://');
-    if (await canLaunchUrl(uri)) {
-      await launchUrl(uri);
-      return;
-    }
-    final fallback = Uri.parse('https://wa.me/');
-    await launchUrl(fallback, mode: LaunchMode.externalApplication);
-  }
-
-  @override
   Widget build(BuildContext context) {
-    final width = MediaQuery.of(context).size.width;
-    final isNarrow = width < 760;
-    final tabHeight = isNarrow ? 320.h : 360.h;
-    final filteredItems = _applyFilters(_items);
-    final images = filteredItems.where((item) => !item.isVideo).toList();
-    final videos = filteredItems.where((item) => item.isVideo).toList();
-    final hasFilters = _searchQuery.isNotEmpty || _favoritesOnly;
-    final showEmptyHint =
-        _isAndroid && !_loading && !_permissionDenied && _items.isEmpty;
+    return GetBuilder<HomeController>(
+      init: HomeController(),
+      builder: (controller) {
+        final width = MediaQuery.of(context).size.width;
+        final isNarrow = width < 760;
+        final tabHeight = isNarrow ? 320.h : 360.h;
+        final filteredItems = controller.filteredItems;
+        final images = filteredItems.where((item) => !item.isVideo).toList();
+        final videos = filteredItems.where((item) => item.isVideo).toList();
+        final hasFilters =
+            controller.searchQuery.isNotEmpty || controller.favoritesOnly;
+        final showEmptyHint = controller.isAndroid &&
+            !controller.loading &&
+            !controller.permissionDenied &&
+            controller.items.isEmpty;
 
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      body: Stack(
-        fit: StackFit.expand,
-        children: [
-          Container(
-            decoration: const BoxDecoration(gradient: AppColors.mistGradient),
-          ),
-          Positioned(
-            top: -100,
-            right: -60,
-            child: _GlowCircle(
-              size: 240,
-              color: AppColors.primary.withOpacity(0.12),
-            ),
-          ),
-          Positioned(
-            bottom: -120,
-            left: -80,
-            child: _GlowCircle(
-              size: 280,
-              color: AppColors.accent.withOpacity(0.14),
-            ),
-          ),
-          SafeArea(
-            child: RefreshIndicator(
-              color: AppColors.primary,
-              onRefresh: _loadMedia,
-              child: SingleChildScrollView(
-                physics: const AlwaysScrollableScrollPhysics(),
-                padding: EdgeInsets.symmetric(horizontal: 20.w, vertical: 20.h),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _TopBar(
-                      isAndroid: _isAndroid,
-                      onOpenFavorites: () {
-                        Navigator.pushNamed(
-                          context,
-                          Routes.favorites,
-                        ).then((_) => _loadFavorites());
-                      },
-                    ),
-                    SizedBox(height: 16.h),
-                    _HeroCard(
-                      isNarrow: isNarrow,
-                      isAndroid: _isAndroid,
-                      onScan: () => _loadMedia(showMessage: true),
-                      onOpenWhatsApp: _openWhatsApp,
-                    ),
-                    SizedBox(height: 12.h),
-                    if (!_isAndroid)
-                      const _PlatformNotice()
-                    else if (_permissionDenied)
-                      _PermissionCard(
-                        onOpenSettings: openAppSettings,
-                        onRetry: _loadMedia,
-                      ),
-                    SizedBox(height: 12.h),
-                    if (_isAndroid)
-                      _FilterBar(
-                        controller: _searchController,
-                        onChanged: (value) {
-                          setState(() {
-                            _searchQuery = value;
-                          });
-                        },
-                        onClear: () {
-                          _searchController.clear();
-                          setState(() {
-                            _searchQuery = '';
-                          });
-                        },
-                        favoritesOnly: _favoritesOnly,
-                        onToggleFavorites: () {
-                          setState(() {
-                            _favoritesOnly = !_favoritesOnly;
-                          });
-                        },
-                        sortNewest: _sortNewest,
-                        onToggleSort: () {
-                          setState(() {
-                            _sortNewest = !_sortNewest;
-                          });
-                        },
-                      ),
-                    if (_isAndroid) SizedBox(height: 12.h),
-                    _OverviewRow(
-                      isNarrow: isNarrow,
-                      imageCount: images.length,
-                      videoCount: videos.length,
-                    ),
-                    SizedBox(height: 20.h),
-                    _PreviewTabs(
-                      height: tabHeight,
-                      images: images,
-                      videos: videos,
-                      isLoading: _loading,
-                      onSave: _isAndroid ? _saveToGallery : null,
-                      onShare: _shareItem,
-                      onCopy: _copyPath,
-                      onDelete: _deleteItem,
-                      onToggleFavorite: _toggleFavorite,
-                      isFavorite: _isFavorite,
-                      canDelete: _repository.isSavedMediaPath,
-                      emptySubtitleKey: hasFilters
-                          ? 'status_filter_empty_subtitle'
-                          : 'status_tabs_hint',
-                      emptyTitleKey: hasFilters
-                          ? 'status_filter_empty_title'
-                          : 'status_tabs_empty',
-                    ),
-                    SizedBox(height: 20.h),
-                    if (showEmptyHint)
-                      _EmptyStatusHelp(
-                        onOpenWhatsApp: _openWhatsApp,
-                        onScan: () => _loadMedia(showMessage: true),
-                      ),
-                    if (showEmptyHint) SizedBox(height: 16.h),
-                    const _HowItWorksCard(),
-                    SizedBox(height: 16.h),
-                    _RecentSection(
-                      items: filteredItems,
-                      onSave: _isAndroid ? _saveToGallery : null,
-                      onShare: _shareItem,
-                      onCopy: _copyPath,
-                      onDelete: _deleteItem,
-                      onToggleFavorite: _toggleFavorite,
-                      isFavorite: _isFavorite,
-                      canDelete: _repository.isSavedMediaPath,
-                    ),
-                    SizedBox(height: 12.h),
-                  ],
+        return Scaffold(
+          backgroundColor: AppColors.background,
+          body: Stack(
+            fit: StackFit.expand,
+            children: [
+              Container(
+                decoration:
+                    const BoxDecoration(gradient: AppColors.mistGradient),
+              ),
+              Positioned(
+                top: -100,
+                right: -60,
+                child: _GlowCircle(
+                  size: 240,
+                  color: AppColors.primary.withOpacity(0.12),
                 ),
               ),
-            ),
+              Positioned(
+                bottom: -120,
+                left: -80,
+                child: _GlowCircle(
+                  size: 280,
+                  color: AppColors.accent.withOpacity(0.14),
+                ),
+              ),
+              SafeArea(
+                child: RefreshIndicator(
+                  color: AppColors.primary,
+                  onRefresh: () => controller.loadMedia(context: context),
+                  child: SingleChildScrollView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    padding:
+                        EdgeInsets.symmetric(horizontal: 20.w, vertical: 20.h),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _TopBar(
+                          isAndroid: controller.isAndroid,
+                          onOpenFavorites: () =>
+                              controller.openFavorites(context),
+                        ),
+                        SizedBox(height: 16.h),
+                        _HeroCard(
+                          isNarrow: isNarrow,
+                          isAndroid: controller.isAndroid,
+                          onScan: () => controller.loadMedia(
+                            showMessage: true,
+                            context: context,
+                          ),
+                          onOpenWhatsApp: () {
+                            controller.openWhatsApp();
+                          },
+                        ),
+                        SizedBox(height: 12.h),
+                        if (!controller.isAndroid)
+                          const _PlatformNotice()
+                        else if (controller.permissionDenied)
+                          _PermissionCard(
+                            onOpenSettings: openAppSettings,
+                            onRetry: ({bool showMessage = false}) =>
+                                controller.loadMedia(
+                              showMessage: showMessage,
+                              context: context,
+                            ),
+                          ),
+                        SizedBox(height: 12.h),
+                        if (controller.isAndroid)
+                          _FilterBar(
+                            controller: controller.searchController,
+                            onChanged: controller.updateSearch,
+                            onClear: controller.clearSearch,
+                            favoritesOnly: controller.favoritesOnly,
+                            onToggleFavorites: controller.toggleFavoritesOnly,
+                            sortNewest: controller.sortNewest,
+                            onToggleSort: controller.toggleSort,
+                          ),
+                        if (controller.isAndroid) SizedBox(height: 12.h),
+                        _OverviewRow(
+                          isNarrow: isNarrow,
+                          imageCount: images.length,
+                          videoCount: videos.length,
+                        ),
+                        SizedBox(height: 20.h),
+                        _PreviewTabs(
+                          height: tabHeight,
+                          images: images,
+                          videos: videos,
+                          isLoading: controller.loading,
+                          onSave: controller.isAndroid
+                              ? (item) =>
+                                  controller.saveToGallery(context, item)
+                              : null,
+                          onShare: (item) =>
+                              controller.shareItem(context, item),
+                          onCopy: (item) => controller.copyPath(context, item),
+                          onDelete: (item) =>
+                              controller.deleteItem(context, item),
+                          onToggleFavorite: controller.toggleFavorite,
+                          isFavorite: controller.isFavorite,
+                          canDelete: controller.repository.isSavedMediaPath,
+                          emptySubtitleKey: hasFilters
+                              ? 'status_filter_empty_subtitle'
+                              : 'status_tabs_hint',
+                          emptyTitleKey: hasFilters
+                              ? 'status_filter_empty_title'
+                              : 'status_tabs_empty',
+                        ),
+                        SizedBox(height: 20.h),
+                        if (showEmptyHint)
+                          _EmptyStatusHelp(
+                            onOpenWhatsApp: () {
+                              controller.openWhatsApp();
+                            },
+                            onScan: () => controller.loadMedia(
+                              showMessage: true,
+                              context: context,
+                            ),
+                          ),
+                        if (showEmptyHint) SizedBox(height: 16.h),
+                        const _HowItWorksCard(),
+                        SizedBox(height: 16.h),
+                        _RecentSection(
+                          items: filteredItems,
+                          onSave: controller.isAndroid
+                              ? (item) =>
+                                  controller.saveToGallery(context, item)
+                              : null,
+                          onShare: (item) =>
+                              controller.shareItem(context, item),
+                          onCopy: (item) => controller.copyPath(context, item),
+                          onDelete: (item) =>
+                              controller.deleteItem(context, item),
+                          onToggleFavorite: controller.toggleFavorite,
+                          isFavorite: controller.isFavorite,
+                          canDelete: controller.repository.isSavedMediaPath,
+                        ),
+                        SizedBox(height: 12.h),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 }
@@ -1047,7 +818,8 @@ class _PreviewGrid extends StatelessWidget {
     }
 
     return GridView.builder(
-      physics: const NeverScrollableScrollPhysics(),
+      primary: false,
+      physics: const BouncingScrollPhysics(),
       padding: EdgeInsets.zero,
       itemCount: items.length,
       gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
