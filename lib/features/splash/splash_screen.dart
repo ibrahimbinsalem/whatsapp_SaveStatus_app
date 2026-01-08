@@ -107,7 +107,7 @@ class _SplashScreenState extends State<SplashScreen>
                             borderRadius: BorderRadius.circular(22),
                           ),
                           child: Image.asset(
-                            'assets/images/app_logo.png',
+                            'assets/images/WhatsApp status download icon.png',
                             width: 120,
                             height: 120,
                             fit: BoxFit.cover,
@@ -222,13 +222,7 @@ class _GlowCircle extends StatelessWidget {
       decoration: BoxDecoration(
         shape: BoxShape.circle,
         color: color,
-        boxShadow: [
-          BoxShadow(
-            color: color,
-            blurRadius: 120,
-            spreadRadius: 20,
-          ),
-        ],
+        boxShadow: [BoxShadow(color: color, blurRadius: 120, spreadRadius: 20)],
       ),
     );
   }

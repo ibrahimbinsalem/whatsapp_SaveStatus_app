@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'routes.dart';
 import '../../features/splash/splash_screen.dart';
-import '../../features/home/views/home_screen.dart';
+import '../../features/home/views/main_shell.dart';
 import '../../features/favorites/views/favorites_screen.dart';
 import '../../features/settings/views/settings_screen.dart';
 
@@ -14,7 +14,7 @@ class AppRouter {
       case Routes.splash:
         return _buildRoute(const SplashScreen(), settings);
       case Routes.home:
-        return _buildRoute(const HomeScreen(), settings);
+        return _buildRoute(const MainShell(), settings);
       case Routes.favorites:
         return _buildRoute(const FavoritesScreen(), settings);
       case Routes.settings:

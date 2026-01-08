@@ -59,6 +59,13 @@ dependencies:
   video_player: ^2.9.5
   video_thumbnail: ^0.5.3
   cross_file: ^0.3.5+1
+  youtube_explode_dart: ^3.0.5
+  file_saver: ^0.3.1
+  fluttertoast: ^9.0.0
+  just_audio: ^0.9.38
+  audio_service: ^0.18.18
+  just_audio_background: ^0.0.1-beta.17
+  ffmpeg_kit_flutter_new_audio: ^2.0.0
 
 dev_dependencies:
   flutter_test:

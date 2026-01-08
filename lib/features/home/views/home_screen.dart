@@ -91,9 +91,9 @@ class _HomeScreenState extends State<HomeScreen> {
     });
 
     if (showMessage && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('status_scan_done'.tr())),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('status_scan_done'.tr())));
     }
   }
 
@@ -159,9 +159,11 @@ class _HomeScreenState extends State<HomeScreen> {
       final name = item.path.split('/').last.toLowerCase();
       return name.contains(query);
     }).toList();
-    filtered.sort((a, b) => _sortNewest
-        ? b.createdAt.compareTo(a.createdAt)
-        : a.createdAt.compareTo(b.createdAt));
+    filtered.sort(
+      (a, b) => _sortNewest
+          ? b.createdAt.compareTo(a.createdAt)
+          : a.createdAt.compareTo(b.createdAt),
+    );
     return filtered;
   }
 
@@ -182,9 +184,9 @@ class _HomeScreenState extends State<HomeScreen> {
       if (!mounted) {
         return;
       }
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('status_already_saved'.tr())),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('status_already_saved'.tr())));
       return;
     }
     final saved = await _repository.saveToGallery(item);
@@ -208,9 +210,9 @@ class _HomeScreenState extends State<HomeScreen> {
       if (!mounted) {
         return;
       }
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('status_share_failed'.tr())),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('status_share_failed'.tr())));
     }
   }
 
@@ -219,9 +221,9 @@ class _HomeScreenState extends State<HomeScreen> {
     if (!mounted) {
       return;
     }
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('status_copy_done'.tr())),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text('status_copy_done'.tr())));
   }
 
   Future<void> _deleteItem(StatusMedia item) async {
@@ -305,14 +307,10 @@ class _HomeScreenState extends State<HomeScreen> {
                     _TopBar(
                       isAndroid: _isAndroid,
                       onOpenFavorites: () {
-                        Navigator.pushNamed(context, Routes.favorites).then(
-                          (_) => _loadFavorites(),
-                        );
-                      },
-                      onOpenSettings: () {
-                        Navigator.pushNamed(context, Routes.settings).then(
-                          (_) => _loadSaved(),
-                        );
+                        Navigator.pushNamed(
+                          context,
+                          Routes.favorites,
+                        ).then((_) => _loadFavorites());
                       },
                     ),
                     SizedBox(height: 16.h),
@@ -418,12 +416,10 @@ class _HomeScreenState extends State<HomeScreen> {
 class _TopBar extends StatelessWidget {
   final bool isAndroid;
   final VoidCallback onOpenFavorites;
-  final VoidCallback onOpenSettings;
 
   const _TopBar({
     required this.isAndroid,
     required this.onOpenFavorites,
-    required this.onOpenSettings,
   });
 
   @override
@@ -445,7 +441,7 @@ class _TopBar extends StatelessWidget {
             ],
           ),
           child: Image.asset(
-            'assets/images/app_logo.png',
+            'assets/images/WhatsApp status download icon.png',
             width: 42.w,
             height: 42.w,
             fit: BoxFit.cover,
@@ -504,12 +500,6 @@ class _TopBar extends StatelessWidget {
               tooltip: 'status_favorites_title'.tr(),
               onTap: onOpenFavorites,
             ),
-            SizedBox(width: 6.w),
-            _TopBarAction(
-              icon: Icons.settings_rounded,
-              tooltip: 'status_settings_title'.tr(),
-              onTap: onOpenSettings,
-            ),
           ],
         ),
       ],
@@ -543,11 +533,7 @@ class _TopBarAction extends StatelessWidget {
             borderRadius: BorderRadius.circular(12.r),
             border: Border.all(color: AppColors.border),
           ),
-          child: Icon(
-            icon,
-            color: AppColors.textSecondary,
-            size: 18.sp,
-          ),
+          child: Icon(icon, color: AppColors.textSecondary, size: 18.sp),
         ),
       ),
     );
@@ -717,10 +703,7 @@ class _PermissionCard extends StatelessWidget {
   final VoidCallback onOpenSettings;
   final Future<void> Function({bool showMessage}) onRetry;
 
-  const _PermissionCard({
-    required this.onOpenSettings,
-    required this.onRetry,
-  });
+  const _PermissionCard({required this.onOpenSettings, required this.onRetry});
 
   @override
   Widget build(BuildContext context) {
@@ -745,10 +728,7 @@ class _PermissionCard extends StatelessWidget {
           SizedBox(height: 6.h),
           Text(
             'status_permission_subtitle'.tr(),
-            style: TextStyle(
-              color: AppColors.textSecondary,
-              fontSize: 12.sp,
-            ),
+            style: TextStyle(color: AppColors.textSecondary, fontSize: 12.sp),
           ),
           SizedBox(height: 12.h),
           Row(
@@ -1011,10 +991,7 @@ class _PreviewTabs extends StatelessWidget {
           SizedBox(height: 8.h),
           Text(
             'status_tabs_hint'.tr(),
-            style: TextStyle(
-              color: AppColors.textSecondary,
-              fontSize: 12.sp,
-            ),
+            style: TextStyle(color: AppColors.textSecondary, fontSize: 12.sp),
           ),
         ],
       ),
@@ -1267,10 +1244,7 @@ class _FavoriteButton extends StatelessWidget {
   final bool isFavorite;
   final VoidCallback onTap;
 
-  const _FavoriteButton({
-    required this.isFavorite,
-    required this.onTap,
-  });
+  const _FavoriteButton({required this.isFavorite, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -1298,10 +1272,7 @@ class _EmptyStatusHelp extends StatelessWidget {
   final VoidCallback onOpenWhatsApp;
   final VoidCallback onScan;
 
-  const _EmptyStatusHelp({
-    required this.onOpenWhatsApp,
-    required this.onScan,
-  });
+  const _EmptyStatusHelp({required this.onOpenWhatsApp, required this.onScan});
 
   @override
   Widget build(BuildContext context) {
@@ -1395,44 +1366,44 @@ class _HowItWorksCard extends StatelessWidget {
           ),
           SizedBox(height: 12.h),
           ...steps.asMap().entries.map(
-                (entry) => Padding(
-                  padding: EdgeInsets.only(bottom: 10.h),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Container(
-                        width: 24.w,
-                        height: 24.w,
-                        decoration: BoxDecoration(
-                          color: AppColors.primary.withOpacity(0.12),
-                          borderRadius: BorderRadius.circular(8.r),
-                        ),
-                        child: Center(
-                          child: Text(
-                            '${entry.key + 1}',
-                            style: TextStyle(
-                              color: AppColors.primary,
-                              fontWeight: FontWeight.w700,
-                              fontSize: 12.sp,
-                            ),
-                          ),
+            (entry) => Padding(
+              padding: EdgeInsets.only(bottom: 10.h),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    width: 24.w,
+                    height: 24.w,
+                    decoration: BoxDecoration(
+                      color: AppColors.primary.withOpacity(0.12),
+                      borderRadius: BorderRadius.circular(8.r),
+                    ),
+                    child: Center(
+                      child: Text(
+                        '${entry.key + 1}',
+                        style: TextStyle(
+                          color: AppColors.primary,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 12.sp,
                         ),
                       ),
-                      SizedBox(width: 10.w),
-                      Expanded(
-                        child: Text(
-                          entry.value.tr(),
-                          style: TextStyle(
-                            color: AppColors.textSecondary,
-                            fontSize: 12.sp,
-                            height: 1.6,
-                          ),
-                        ),
-                      ),
-                    ],
+                    ),
                   ),
-                ),
+                  SizedBox(width: 10.w),
+                  Expanded(
+                    child: Text(
+                      entry.value.tr(),
+                      style: TextStyle(
+                        color: AppColors.textSecondary,
+                        fontSize: 12.sp,
+                        height: 1.6,
+                      ),
+                    ),
+                  ),
+                ],
               ),
+            ),
+          ),
         ],
       ),
     );
@@ -1471,10 +1442,7 @@ class _RecentSection extends StatelessWidget {
         SizedBox(height: 6.h),
         Text(
           'status_recent_subtitle'.tr(),
-          style: TextStyle(
-            color: AppColors.textSecondary,
-            fontSize: 12.sp,
-          ),
+          style: TextStyle(color: AppColors.textSecondary, fontSize: 12.sp),
         ),
         SizedBox(height: 12.h),
         if (recentItems.isEmpty)
@@ -1496,11 +1464,11 @@ class _RecentSection extends StatelessWidget {
                   item: item,
                   isFavorite: isFavorite(item),
                   onToggleFavorite: () => onToggleFavorite(item),
-                    onTap: () => StatusPreviewSheet.show(
-                      context,
-                      item,
-                      onSave: onSave,
-                      onShare: onShare,
+                  onTap: () => StatusPreviewSheet.show(
+                    context,
+                    item,
+                    onSave: onSave,
+                    onShare: onShare,
                     onCopy: onCopy,
                     onDelete: onDelete,
                     onToggleFavorite: onToggleFavorite,
@@ -1611,10 +1579,7 @@ class _RecentItem extends StatelessWidget {
             SizedBox(height: 2.h),
             Text(
               _formatTime(context),
-              style: TextStyle(
-                color: AppColors.textSecondary,
-                fontSize: 11.sp,
-              ),
+              style: TextStyle(color: AppColors.textSecondary, fontSize: 11.sp),
             ),
           ],
         ),
@@ -1704,13 +1669,7 @@ class _GlowCircle extends StatelessWidget {
       decoration: BoxDecoration(
         shape: BoxShape.circle,
         color: color,
-        boxShadow: [
-          BoxShadow(
-            color: color,
-            blurRadius: 120,
-            spreadRadius: 20,
-          ),
-        ],
+        boxShadow: [BoxShadow(color: color, blurRadius: 120, spreadRadius: 20)],
       ),
     );
   }
