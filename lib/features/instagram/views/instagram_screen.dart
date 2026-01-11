@@ -8,62 +8,53 @@ import '../controllers/instagram_controller.dart';
 class InstagramScreen extends StatelessWidget {
   const InstagramScreen({super.key});
 
-  static const Color _igPink = Color(0xFFE4405F);
-  static const Color _igPurple = Color(0xFF833AB4);
-  static const Color _igOrange = Color(0xFFFCAF45);
-  static const Color _igSurface = Color(0xFFFDF6F7);
-
   @override
   Widget build(BuildContext context) {
     return GetBuilder<InstagramController>(
       init: InstagramController(),
-      builder: (_) {
+      builder: (controller) {
         return Scaffold(
-          backgroundColor: const Color(0xFFFFF7F9),
+          backgroundColor: const Color(0xFF0F0F0F),
           body: Stack(
-            fit: StackFit.expand,
             children: [
-              Container(
-                decoration: const BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [Color(0xFFFFF7F9), Color(0xFFFFEDF2)],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-                ),
-              ),
+              // خلفية بتدرجات ألوان إنستقرام الخافتة
               Positioned(
-                top: -120,
-                left: -60,
-                child: _GlowBubble(
-                  size: 240,
-                  color: _igPurple.withOpacity(0.18),
-                ),
-              ),
-              Positioned(
-                bottom: -130,
+                top: -100,
                 right: -80,
                 child: _GlowBubble(
-                  size: 280,
-                  color: _igOrange.withOpacity(0.2),
+                  size: 250,
+                  color: const Color(0xFF833AB4).withOpacity(0.15),
                 ),
               ),
+              Positioned(
+                bottom: -120,
+                left: -80,
+                child: _GlowBubble(
+                  size: 280,
+                  color: const Color(0xFFF77737).withOpacity(0.12),
+                ),
+              ),
+
               SafeArea(
                 child: SingleChildScrollView(
-                  padding:
-                      EdgeInsets.symmetric(horizontal: 20.w, vertical: 20.h),
+                  padding: EdgeInsets.symmetric(
+                    horizontal: 20.w,
+                    vertical: 16.h,
+                  ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      _TopBar(),
-                      SizedBox(height: 18.h),
-                      _HeroCard(),
-                      SizedBox(height: 16.h),
-                      _InputCard(),
-                      SizedBox(height: 16.h),
-                      _Collections(),
-                      SizedBox(height: 20.h),
-                      _Insights(),
+                      _Header(onBack: () => Navigator.pop(context)),
+                      SizedBox(height: 24.h),
+                      _InputCard(controller: controller),
+                      SizedBox(height: 32.h),
+                      _SectionTitle(title: 'ig_section_collections'.tr()),
+                      SizedBox(height: 12.h),
+                      _CollectionsGrid(controller: controller),
+                      SizedBox(height: 32.h),
+                      _SectionTitle(title: 'ig_section_insights'.tr()),
+                      SizedBox(height: 12.h),
+                      const _InsightsList(),
                     ],
                   ),
                 ),
@@ -76,32 +67,28 @@ class InstagramScreen extends StatelessWidget {
   }
 }
 
-class _TopBar extends StatelessWidget {
+class _Header extends StatelessWidget {
+  final VoidCallback onBack;
+  const _Header({required this.onBack});
+
   @override
   Widget build(BuildContext context) {
     return Row(
       children: [
-        Container(
-          padding: EdgeInsets.all(10.w),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(14.r),
-            border: Border.all(color: Colors.black12),
-          ),
-          child: ShaderMask(
-            shaderCallback: (bounds) {
-              return const LinearGradient(
-                colors: [
-                  InstagramScreen._igPurple,
-                  InstagramScreen._igPink,
-                  InstagramScreen._igOrange,
-                ],
-              ).createShader(bounds);
-            },
+        InkWell(
+          onTap: onBack,
+          borderRadius: BorderRadius.circular(12.r),
+          child: Container(
+            padding: EdgeInsets.all(8.w),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.05),
+              borderRadius: BorderRadius.circular(12.r),
+              border: Border.all(color: Colors.white10),
+            ),
             child: Icon(
-              Icons.camera_alt_rounded,
+              Icons.arrow_back_rounded,
               color: Colors.white,
-              size: 24.sp,
+              size: 20.sp,
             ),
           ),
         ),
@@ -113,18 +100,14 @@ class _TopBar extends StatelessWidget {
               Text(
                 'ig_title'.tr(),
                 style: TextStyle(
-                  color: Colors.black87,
+                  color: Colors.white,
+                  fontSize: 18.sp,
                   fontWeight: FontWeight.w700,
-                  fontSize: 16.sp,
                 ),
               ),
-              SizedBox(height: 4.h),
               Text(
                 'ig_tagline'.tr(),
-                style: TextStyle(
-                  color: Colors.black54,
-                  fontSize: 11.sp,
-                ),
+                style: TextStyle(color: Colors.white70, fontSize: 12.sp),
               ),
             ],
           ),
@@ -134,257 +117,224 @@ class _TopBar extends StatelessWidget {
   }
 }
 
-class _HeroCard extends StatelessWidget {
+class _InputCard extends StatelessWidget {
+  final InstagramController controller;
+  const _InputCard({required this.controller});
+
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: EdgeInsets.all(18.w),
+      padding: EdgeInsets.all(20.w),
       decoration: BoxDecoration(
         gradient: const LinearGradient(
-          colors: [
-            InstagramScreen._igPurple,
-            InstagramScreen._igPink,
-            InstagramScreen._igOrange,
-          ],
+          colors: [Color(0xFF1A1A1A), Color(0xFF252525)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
-        borderRadius: BorderRadius.circular(20.r),
+        borderRadius: BorderRadius.circular(24.r),
+        border: Border.all(color: Colors.white10),
         boxShadow: [
           BoxShadow(
-            color: InstagramScreen._igPink.withOpacity(0.25),
-            blurRadius: 24.r,
-            offset: Offset(0, 12.h),
+            color: Colors.black.withOpacity(0.2),
+            blurRadius: 20,
+            offset: const Offset(0, 10),
           ),
         ],
       ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'ig_title'.tr(),
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 20.sp,
-              fontWeight: FontWeight.w800,
+          Container(
+            decoration: BoxDecoration(
+              color: Colors.black26,
+              borderRadius: BorderRadius.circular(16.r),
+              border: Border.all(color: Colors.white12),
             ),
-          ),
-          SizedBox(height: 6.h),
-          Text(
-            'ig_subtitle'.tr(),
-            style: TextStyle(
-              color: Colors.white70,
-              fontSize: 12.sp,
-            ),
-          ),
-          SizedBox(height: 14.h),
-          Row(
-            children: [
-              _Badge(text: 'ig_card_reels'.tr()),
-              SizedBox(width: 8.w),
-              _Badge(text: 'ig_card_posts'.tr()),
-              SizedBox(width: 8.w),
-              _Badge(text: 'ig_card_stories'.tr()),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _InputCard extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: EdgeInsets.all(16.w),
-      decoration: BoxDecoration(
-        color: InstagramScreen._igSurface,
-        borderRadius: BorderRadius.circular(16.r),
-        border: Border.all(color: Colors.black12),
-      ),
-      child: Column(
-        children: [
-          TextField(
-            decoration: InputDecoration(
-              hintText: 'ig_input_hint'.tr(),
-              hintStyle: TextStyle(
-                color: Colors.black45,
-                fontSize: 12.sp,
-              ),
-              prefixIcon: Icon(
-                Icons.link_rounded,
-                color: Colors.black45,
-                size: 18.sp,
-              ),
-              filled: true,
-              fillColor: Colors.white,
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(14.r),
-                borderSide: BorderSide.none,
+            child: TextField(
+              controller: controller.urlController,
+              style: const TextStyle(color: Colors.white),
+              onChanged: controller.updateUrl,
+              decoration: InputDecoration(
+                hintText: 'ig_input_hint'.tr(),
+                hintStyle: TextStyle(color: Colors.white38, fontSize: 13.sp),
+                border: InputBorder.none,
+                contentPadding: EdgeInsets.all(16.w),
+                prefixIcon: Icon(
+                  Icons.link_rounded,
+                  color: Colors.white54,
+                  size: 20.sp,
+                ),
+                suffixIcon: controller.urlController.text.isNotEmpty
+                    ? IconButton(
+                        icon: const Icon(
+                          Icons.clear_rounded,
+                          color: Colors.white54,
+                        ),
+                        onPressed: controller.clearInput,
+                      )
+                    : null,
               ),
             ),
-            style: const TextStyle(color: Colors.black87),
           ),
-          SizedBox(height: 12.h),
+          SizedBox(height: 16.h),
           Row(
             children: [
               Expanded(
-                child: OutlinedButton(
-                  onPressed: () {},
+                child: OutlinedButton.icon(
+                  onPressed: controller.pasteLink,
                   style: OutlinedButton.styleFrom(
-                    side: BorderSide(
-                      color: InstagramScreen._igPurple.withOpacity(0.4),
-                    ),
-                    foregroundColor: InstagramScreen._igPurple,
+                    foregroundColor: Colors.white,
+                    side: const BorderSide(color: Colors.white24),
                     padding: EdgeInsets.symmetric(vertical: 14.h),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(14.r),
                     ),
                   ),
-                  child: Text(
-                    'ig_action_paste'.tr(),
-                    style: TextStyle(fontSize: 12.sp),
-                  ),
+                  icon: const Icon(Icons.paste_rounded, size: 18),
+                  label: Text('ig_action_paste'.tr()),
                 ),
               ),
               SizedBox(width: 12.w),
               Expanded(
-                child: ElevatedButton(
-                  onPressed: () {},
+                child: ElevatedButton.icon(
+                  onPressed: controller.isLoading
+                      ? null
+                      : controller.fetchContent,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: InstagramScreen._igPink,
+                    backgroundColor: const Color(0xFFE1306C),
                     foregroundColor: Colors.white,
                     padding: EdgeInsets.symmetric(vertical: 14.h),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(14.r),
                     ),
                   ),
-                  child: Text(
-                    'ig_action_fetch'.tr(),
-                    style: TextStyle(fontSize: 12.sp),
-                  ),
+                  icon: controller.isLoading
+                      ? SizedBox(
+                          width: 18.w,
+                          height: 18.w,
+                          child: const CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
+                      : const Icon(Icons.download_rounded, size: 18),
+                  label: Text('ig_action_fetch'.tr()),
                 ),
               ),
             ],
           ),
+          SizedBox(height: 12.h),
+          Text(
+            'ig_subtitle'.tr(),
+            textAlign: TextAlign.center,
+            style: TextStyle(color: Colors.white54, fontSize: 11.sp),
+          ),
         ],
       ),
     );
   }
 }
 
-class _Collections extends StatelessWidget {
+class _CollectionsGrid extends StatelessWidget {
+  final InstagramController controller;
+  const _CollectionsGrid({required this.controller});
+
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: EdgeInsets.all(16.w),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16.r),
-        border: Border.all(color: Colors.black12),
+    final items = [
+      {
+        'icon': Icons.movie_filter_rounded,
+        'label': 'ig_card_reels'.tr(),
+        'color': const Color(0xFFE1306C),
+      },
+      {
+        'icon': Icons.grid_on_rounded,
+        'label': 'ig_card_posts'.tr(),
+        'color': const Color(0xFFC13584),
+      },
+      {
+        'icon': Icons.history_edu_rounded,
+        'label': 'ig_card_stories'.tr(),
+        'color': const Color(0xFFF77737),
+      },
+      {
+        'icon': Icons.favorite_border_rounded,
+        'label': 'ig_card_highlights'.tr(),
+        'color': const Color(0xFFFD1D1D),
+      },
+    ];
+
+    return GridView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 2,
+        crossAxisSpacing: 12.w,
+        mainAxisSpacing: 12.h,
+        childAspectRatio: 1.6,
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _SectionHeader(title: 'ig_section_collections'.tr()),
-          SizedBox(height: 10.h),
-          Wrap(
-            spacing: 10.w,
-            runSpacing: 10.h,
+      itemCount: items.length,
+      itemBuilder: (context, index) {
+        final item = items[index];
+        return Container(
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(0.05),
+            borderRadius: BorderRadius.circular(16.r),
+            border: Border.all(color: Colors.white10),
+          ),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              _CollectionTile(
-                title: 'ig_card_reels'.tr(),
-                icon: Icons.video_library_rounded,
+              Icon(
+                item['icon'] as IconData,
+                color: item['color'] as Color,
+                size: 28.sp,
               ),
-              _CollectionTile(
-                title: 'ig_card_posts'.tr(),
-                icon: Icons.grid_on_rounded,
-              ),
-              _CollectionTile(
-                title: 'ig_card_stories'.tr(),
-                icon: Icons.history_toggle_off_rounded,
-              ),
-              _CollectionTile(
-                title: 'ig_card_highlights'.tr(),
-                icon: Icons.auto_awesome_rounded,
+              SizedBox(height: 8.h),
+              Text(
+                item['label'] as String,
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 13.sp,
+                  fontWeight: FontWeight.w500,
+                ),
               ),
             ],
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 }
 
-class _Insights extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: EdgeInsets.all(16.w),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16.r),
-        border: Border.all(color: Colors.black12),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _SectionHeader(title: 'ig_section_insights'.tr()),
-          SizedBox(height: 10.h),
-          _InsightRow(
-            icon: Icons.auto_graph_rounded,
-            title: 'ig_insight_quality'.tr(),
-            subtitle: 'ig_insight_quality_desc'.tr(),
-          ),
-          SizedBox(height: 10.h),
-          _InsightRow(
-            icon: Icons.lock_outline_rounded,
-            title: 'ig_insight_privacy'.tr(),
-            subtitle: 'ig_insight_privacy_desc'.tr(),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _CollectionTile extends StatelessWidget {
-  final String title;
-  final IconData icon;
-
-  const _CollectionTile({required this.title, required this.icon});
+class _InsightsList extends StatelessWidget {
+  const _InsightsList();
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 12.h),
-      decoration: BoxDecoration(
-        color: InstagramScreen._igSurface,
-        borderRadius: BorderRadius.circular(12.r),
-        border: Border.all(color: Colors.black12),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, color: InstagramScreen._igPink, size: 16.sp),
-          SizedBox(width: 8.w),
-          Text(
-            title,
-            style: TextStyle(color: Colors.black87, fontSize: 11.sp),
-          ),
-        ],
-      ),
+    return Column(
+      children: [
+        _InsightTile(
+          icon: Icons.high_quality_rounded,
+          title: 'ig_insight_quality'.tr(),
+          subtitle: 'ig_insight_quality_desc'.tr(),
+        ),
+        SizedBox(height: 12.h),
+        _InsightTile(
+          icon: Icons.privacy_tip_outlined,
+          title: 'ig_insight_privacy'.tr(),
+          subtitle: 'ig_insight_privacy_desc'.tr(),
+        ),
+      ],
     );
   }
 }
 
-class _InsightRow extends StatelessWidget {
+class _InsightTile extends StatelessWidget {
   final IconData icon;
   final String title;
   final String subtitle;
 
-  const _InsightRow({
+  const _InsightTile({
     required this.icon,
     required this.title,
     required this.subtitle,
@@ -392,83 +342,55 @@ class _InsightRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Container(
-          width: 36.w,
-          height: 36.w,
-          decoration: BoxDecoration(
-            color: InstagramScreen._igSurface,
-            borderRadius: BorderRadius.circular(12.r),
-            border: Border.all(color: Colors.black12),
-          ),
-          child: Icon(icon, color: InstagramScreen._igPurple, size: 18.sp),
-        ),
-        SizedBox(width: 12.w),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                title,
-                style: TextStyle(
-                  color: Colors.black87,
-                  fontWeight: FontWeight.w600,
-                  fontSize: 12.sp,
+    return Container(
+      padding: EdgeInsets.all(16.w),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.03),
+        borderRadius: BorderRadius.circular(16.r),
+        border: Border.all(color: Colors.white10),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, color: Colors.white70, size: 24.sp),
+          SizedBox(width: 16.w),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 13.sp,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
-              ),
-              SizedBox(height: 4.h),
-              Text(
-                subtitle,
-                style: TextStyle(
-                  color: Colors.black54,
-                  fontSize: 11.sp,
-                  height: 1.4,
+                SizedBox(height: 4.h),
+                Text(
+                  subtitle,
+                  style: TextStyle(color: Colors.white54, fontSize: 11.sp),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }
 
-class _SectionHeader extends StatelessWidget {
+class _SectionTitle extends StatelessWidget {
   final String title;
-
-  const _SectionHeader({required this.title});
+  const _SectionTitle({required this.title});
 
   @override
   Widget build(BuildContext context) {
     return Text(
       title,
       style: TextStyle(
-        color: Colors.black87,
-        fontSize: 14.sp,
+        color: Colors.white,
+        fontSize: 15.sp,
         fontWeight: FontWeight.w700,
-      ),
-    );
-  }
-}
-
-class _Badge extends StatelessWidget {
-  final String text;
-
-  const _Badge({required this.text});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 6.h),
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.18),
-        borderRadius: BorderRadius.circular(10.r),
-      ),
-      child: Text(
-        text,
-        style: TextStyle(color: Colors.white, fontSize: 10.sp),
       ),
     );
   }
@@ -477,7 +399,6 @@ class _Badge extends StatelessWidget {
 class _GlowBubble extends StatelessWidget {
   final double size;
   final Color color;
-
   const _GlowBubble({required this.size, required this.color});
 
   @override
@@ -488,13 +409,7 @@ class _GlowBubble extends StatelessWidget {
       decoration: BoxDecoration(
         shape: BoxShape.circle,
         color: color,
-        boxShadow: [
-          BoxShadow(
-            color: color,
-            blurRadius: 120,
-            spreadRadius: 20,
-          ),
-        ],
+        boxShadow: [BoxShadow(color: color, blurRadius: 100, spreadRadius: 10)],
       ),
     );
   }
